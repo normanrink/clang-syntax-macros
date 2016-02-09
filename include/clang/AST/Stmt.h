@@ -67,6 +67,7 @@ public:
         first##BASE##Constant=FIRST##Class, last##BASE##Constant=LAST##Class
 #define ABSTRACT_STMT(STMT)
 #include "clang/AST/StmtNodes.inc"
+    , PHStmtClass
   };
 
   // Make vanilla 'new' and 'delete' illegal for Stmts.
@@ -227,12 +228,12 @@ protected:
     friend class TypeTraitExpr;
     friend class ASTStmtReader;
     friend class ASTStmtWriter;
-    
+
     unsigned : NumExprBits;
-    
+
     /// \brief The kind of type trait, which is a value of a TypeTrait enumerator.
     unsigned Kind : 8;
-    
+
     /// \brief If this expression is not value-dependent, this indicates whether
     /// the trait evaluated true or false.
     unsigned Value : 1;
@@ -421,6 +422,37 @@ public:
   /// written in the source.
   void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,
                bool Canonical) const;
+};
+
+class PHStmt : public Stmt {
+  const StringRef Name;
+  SourceLocation StartLoc, EndLoc;
+
+public:
+  PHStmt(const StringRef &name, SourceLocation startLoc,
+         SourceLocation endLoc) : Stmt(PHStmtClass), Name(name),
+                                  StartLoc(startLoc), EndLoc(endLoc) {}
+
+  /// \brief Build an empty declaration statement.
+  explicit PHStmt(EmptyShell Empty) : Stmt(PHStmtClass, Empty) { }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == PHStmtClass;
+  }
+
+  std::string getName() { return Name.str(); }
+
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+
+  SourceLocation getStartLoc() const { return StartLoc; }
+  void setStartLoc(SourceLocation L) { StartLoc = L; }
+  SourceLocation getEndLoc() const { return EndLoc; }
+  void setEndLoc(SourceLocation L) { EndLoc = L; }
+
+  SourceLocation getLocStart() const LLVM_READONLY { return StartLoc; }
+  SourceLocation getLocEnd() const LLVM_READONLY { return EndLoc; }
 };
 
 /// DeclStmt - Adaptor class for mixing declarations with statements and
@@ -1464,7 +1496,7 @@ public:
   /// getInputConstraint - Return the specified input constraint.  Unlike output
   /// constraints, these can be empty.
   StringRef getInputConstraint(unsigned i) const;
-  
+
   const Expr *getInputExpr(unsigned i) const;
 
   //===--- Other ---===//
@@ -2046,7 +2078,7 @@ private:
   /// \brief The number of variable captured, including 'this'.
   unsigned NumCaptures;
 
-  /// \brief The pointer part is the implicit the outlined function and the 
+  /// \brief The pointer part is the implicit the outlined function and the
   /// int part is the captured region kind, 'CR_Default' etc.
   llvm::PointerIntPair<CapturedDecl *, 1, CapturedRegionKind> CapDeclAndKind;
 

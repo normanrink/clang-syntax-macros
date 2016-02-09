@@ -119,6 +119,7 @@ protected:
   llvm::DenseMap<Decl *, Decl *> TransformedLocalDecls;
 
 public:
+  StmtResult TransformPHStmt(PHStmt *S);
   /// \brief Initializes a new tree transformer.
   TreeTransform(Sema &SemaRef) : SemaRef(SemaRef) { }
 
@@ -652,6 +653,7 @@ public:
   ExprResult Transform##Node(Node *E);
 #define ABSTRACT_STMT(Stmt)
 #include "clang/AST/StmtNodes.inc"
+
 
 #define OPENMP_CLAUSE(Name, Class)                        \
   LLVM_ATTRIBUTE_NOINLINE \
@@ -1676,7 +1678,7 @@ public:
   OMPClause *RebuildOMPNumTeamsClause(Expr *NumTeams, SourceLocation StartLoc,
                                       SourceLocation LParenLoc,
                                       SourceLocation EndLoc) {
-    return getSema().ActOnOpenMPNumTeamsClause(NumTeams, StartLoc, LParenLoc, 
+    return getSema().ActOnOpenMPNumTeamsClause(NumTeams, StartLoc, LParenLoc,
                                                EndLoc);
   }
 
@@ -2845,7 +2847,7 @@ public:
                                           Sel, Method, LBracLoc, SelectorLocs,
                                           RBracLoc, Args);
 
-      
+
   }
 
   /// \brief Build a new Objective-C ivar reference expression.
@@ -3077,6 +3079,9 @@ StmtResult TreeTransform<Derived>::TransformStmt(Stmt *S) {
 
   switch (S->getStmtClass()) {
   case Stmt::NoStmtClass: break;
+  case Stmt::PHStmtClass:
+    return getDerived().TransformPHStmt(cast<PHStmt>(S));
+    break;
 
   // Transform individual statement nodes
 #define STMT(Node, Parent)                                              \
@@ -5861,7 +5866,7 @@ TreeTransform<Derived>::TransformObjCObjectType(TypeLocBuilder &TLB,
 
         TypeLocBuilder TypeArgBuilder;
         TypeArgBuilder.reserve(PatternLoc.getFullDataSize());
-        QualType NewPatternType = getDerived().TransformType(TypeArgBuilder, 
+        QualType NewPatternType = getDerived().TransformType(TypeArgBuilder,
                                                              PatternLoc);
         if (NewPatternType.isNull())
           return QualType();
@@ -5973,6 +5978,12 @@ TreeTransform<Derived>::TransformObjCObjectPointerType(TypeLocBuilder &TLB,
 template<typename Derived>
 StmtResult
 TreeTransform<Derived>::TransformNullStmt(NullStmt *S) {
+  return S;
+}
+
+template<typename Derived>
+StmtResult
+TreeTransform<Derived>::TransformPHStmt(PHStmt *S) {
   return S;
 }
 
@@ -9948,7 +9959,7 @@ TreeTransform<Derived>::TransformLambdaExpr(LambdaExpr *E) {
   TypeSourceInfo *NewCallOpTSI = nullptr;
   {
     TypeSourceInfo *OldCallOpTSI = E->getCallOperator()->getTypeSourceInfo();
-    FunctionProtoTypeLoc OldCallOpFPTL = 
+    FunctionProtoTypeLoc OldCallOpFPTL =
         OldCallOpTSI->getTypeLoc().getAs<FunctionProtoTypeLoc>();
 
     TypeLocBuilder NewCallOpTLBuilder;
@@ -10027,7 +10038,7 @@ TreeTransform<Derived>::TransformLambdaExpr(LambdaExpr *E) {
 
     // Rebuild init-captures, including the implied field declaration.
     if (E->isInitCapture(C)) {
-      InitCaptureInfoTy InitExprTypePair = 
+      InitCaptureInfoTy InitExprTypePair =
           InitCaptureExprsAndTypes[C - E->capture_begin()];
       ExprResult Init = InitExprTypePair.first;
       QualType InitQualType = InitExprTypePair.second;
@@ -11692,6 +11703,26 @@ TreeTransform<Derived>::TransformCapturedStmt(CapturedStmt *S) {
 
   return getSema().ActOnCapturedRegionEnd(Body.get());
 }
+
+
+class TreeInstantiator : public TreeTransform<TreeInstantiator> {
+private:
+    std::map<std::string, Stmt*> Arguments;
+public:
+  TreeInstantiator(Sema &SemaRef) : TreeTransform<TreeInstantiator>(SemaRef) {}
+  TreeInstantiator(Sema &SemaRef,
+                   std::map<std::string, Stmt*> args)
+      : TreeTransform<TreeInstantiator>(SemaRef) {
+           Arguments = args;
+      }
+
+  bool AlwaysRebuild() { return true; }
+
+  StmtResult
+      TransformPHStmt(PHStmt *S) {
+          return TransformStmt(Arguments[S->getName()]);
+      }
+};
 
 } // end namespace clang
 

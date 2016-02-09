@@ -206,6 +206,9 @@ PUNCTUATOR(comma,               ",")
 PUNCTUATOR(hash,                "#")
 PUNCTUATOR(hashhash,            "##")
 PUNCTUATOR(hashat,              "#@")
+PUNCTUATOR(cash,                "$")
+PUNCTUATOR(cashcash,            "$$")
+PUNCTUATOR(cashcashcash,        "$$")
 
 // C++ Support
 PUNCTUATOR(periodstar,          ".*")
