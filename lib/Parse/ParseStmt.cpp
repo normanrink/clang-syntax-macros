@@ -24,9 +24,6 @@
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/TypoCorrection.h"
 #include "llvm/ADT/SmallString.h"
-
-#include "../lib/Sema/TreeTransform.h"
-
 using namespace clang;
 
 //===----------------------------------------------------------------------===//
@@ -39,17 +36,6 @@ StmtResult Parser::ParseStatement(SourceLocation *TrailingElseLoc,
                                   bool AllowOpenMPStandalone) {
   StmtResult Res;
 
-/*  bool capture = false;
-  StringRef n;
-  if (Tok.is(tok::cashcash)) {
-       ConsumeToken(); // eat the '$$'
-
-       assert(Tok.is(tok::identifier));
-       n = Tok.getIdentifierInfo()->getName();
-       ConsumeToken(); // eat the identifier
-
-       capture = true;
-  }*/
   // We may get back a null statement if we found a #pragma. Keep going until
   // we get an actual statement.
   do {
@@ -59,11 +45,6 @@ StmtResult Parser::ParseStatement(SourceLocation *TrailingElseLoc,
                                      : ACK_StatementsOpenMPNonStandalone,
         TrailingElseLoc);
   } while (!Res.isInvalid() && !Res.get());
-
-/*  if (capture) {
-    Actions.ActOnCaptureStmt(n, Res.get());
-    Res = Actions.ActOnNullStmt(*TrailingElseLoc);
-  }*/
 
   return Res;
 }
@@ -127,100 +108,11 @@ Parser::ParseStatementOrDeclaration(StmtVector &Stmts,
   ParsedAttributesWithRange Attrs(AttrFactory);
   MaybeParseCXX11Attributes(Attrs, nullptr, /*MightBeObjCMessageSend*/ true);
 
-  StmtResult Res;
-
-  bool capture = false;
-  std::vector<std::string> params;
-  StringRef n;
-  if (Tok.is(tok::cashcash)) {
-    //ConsumeToken(); // eat the '$$'
-    Token next = NextToken();
-
-    assert(next.is(tok::identifier));
-    n = next.getIdentifierInfo()->getName();
-    //ConsumeToken(); // eat the identifier
-
-    if (n.equals("stmt")) {
-      ConsumeToken(); // eat the '$$'
-      ConsumeToken(); // eat the identifier
-      capture = true;
-
-      assert(Tok.is(tok::identifier));
-      n = Tok.getIdentifierInfo()->getName();
-      ConsumeToken(); // eat the identifier
-
-      if (Tok.is(tok::l_paren)) { // We have a parameter list.
-        BalancedDelimiterTracker T(*this, tok::l_paren);
-        T.consumeOpen(); // eat the '('
-
-        while (!Tok.is(tok::r_paren)) {
-          assert(Tok.is(tok::identifier));
-          std::string p = Tok.getIdentifierInfo()->getName();
-          ConsumeToken(); // eat the identifier
-
-          params.push_back(p);
-
-          if (Tok.is(tok::comma))
-            ConsumeToken(); // eat the ','
-        }
-        assert(Tok.is(tok::r_paren));
-        T.consumeClose(); // eat the ')'
-      }
-    }
-  } else if (Tok.is(tok::cash)) {
-    ConsumeToken(); // eat the '$'
-
-    assert(Tok.is(tok::identifier));
-    n = Tok.getIdentifierInfo()->getName();
-    ConsumeToken(); // eat the identifier
-
-    std::vector<Stmt*> params;
-    if (Tok.is(tok::l_paren)) { // We have a parameter list.
-        BalancedDelimiterTracker T(*this, tok::l_paren);
-        T.consumeOpen(); // eat the '('
-
-        while (!Tok.is(tok::r_paren)) {
-          StmtVector stmts;
-          Stmt *s = ParseStatementOrDeclaration(stmts, Allowed, TrailingElseLoc).get();
-
-          params.push_back(s);
-
-          if (Tok.is(tok::comma))
-            ConsumeToken(); // eat the ','
-        }
-        assert(Tok.is(tok::r_paren));
-        T.consumeClose(); // eat the ')'
-    }
-
-    Sema::StmtPairTy templ = Actions.getCapturedStmt(n);
-    assert(templ.first);
-    assert(templ.second.size() == params.size());
-    std::map<std::string, Stmt*> args;
-    for (unsigned i = 0; i < params.size(); i++) {
-         args[templ.second[i]] = params[i];
-    }
-    Res = TreeInstantiator(Actions, args).TransformStmt(templ.first);
-    return Res;
-  } else if (Tok.is(tok::cashcashcash)) {
-    ConsumeToken();
-
-    assert(Tok.is(tok::identifier));
-    n = Tok.getIdentifierInfo()->getName();
-    ConsumeToken(); // eat the identifier
-    return Actions.ActOnPHStmt(n, SourceLocation(), SourceLocation());
-  }
-
-
-  Res = ParseStatementOrDeclarationAfterAttributes(
+  StmtResult Res = ParseStatementOrDeclarationAfterAttributes(
       Stmts, Allowed, TrailingElseLoc, Attrs);
 
   assert((Attrs.empty() || Res.isInvalid() || Res.isUsable()) &&
          "attributes on empty statement");
-
-  if (capture) {
-    Actions.ActOnCaptureStmt(n, Res.get(), params);
-    Res = Actions.ActOnNullStmt(Res.get()->getLocEnd());
-  }
 
   if (Attrs.empty() || Res.isInvalid())
     return Res;

@@ -67,7 +67,6 @@ public:
         first##BASE##Constant=FIRST##Class, last##BASE##Constant=LAST##Class
 #define ABSTRACT_STMT(STMT)
 #include "clang/AST/StmtNodes.inc"
-    , PHStmtClass
   };
 
   // Make vanilla 'new' and 'delete' illegal for Stmts.
@@ -422,37 +421,6 @@ public:
   /// written in the source.
   void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,
                bool Canonical) const;
-};
-
-class PHStmt : public Stmt {
-  const StringRef Name;
-  SourceLocation StartLoc, EndLoc;
-
-public:
-  PHStmt(const StringRef &name, SourceLocation startLoc,
-         SourceLocation endLoc) : Stmt(PHStmtClass), Name(name),
-                                  StartLoc(startLoc), EndLoc(endLoc) {}
-
-  /// \brief Build an empty declaration statement.
-  explicit PHStmt(EmptyShell Empty) : Stmt(PHStmtClass, Empty) { }
-
-  static bool classof(const Stmt *T) {
-    return T->getStmtClass() == PHStmtClass;
-  }
-
-  std::string getName() { return Name.str(); }
-
-  child_range children() {
-    return child_range(child_iterator(), child_iterator());
-  }
-
-  SourceLocation getStartLoc() const { return StartLoc; }
-  void setStartLoc(SourceLocation L) { StartLoc = L; }
-  SourceLocation getEndLoc() const { return EndLoc; }
-  void setEndLoc(SourceLocation L) { EndLoc = L; }
-
-  SourceLocation getLocStart() const LLVM_READONLY { return StartLoc; }
-  SourceLocation getLocEnd() const LLVM_READONLY { return EndLoc; }
 };
 
 /// DeclStmt - Adaptor class for mixing declarations with statements and
@@ -2221,6 +2189,40 @@ public:
   child_range children();
 
   friend class ASTStmtReader;
+};
+
+class Placeholder {
+  const StringRef Name;
+  const bool Typed;
+
+public:
+  Placeholder(const StringRef &name, bool typed)
+    : Name(name), Typed(typed) {}
+
+  std::string getName() const { return Name.str(); }
+  bool isTyped() const { return Typed; }
+};
+
+class StmtPlaceholder : public Stmt, public Placeholder {
+  SourceLocation StartLoc, EndLoc;
+
+public:
+  StmtPlaceholder(const StringRef &name, SourceLocation startLoc,
+                  SourceLocation endLoc)
+    : Stmt(StmtPlaceholderClass),
+      Placeholder(name, false),
+      StartLoc(startLoc), EndLoc(endLoc) {}
+
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == StmtPlaceholderClass;
+  }
+
+  SourceLocation getLocStart() const LLVM_READONLY { return StartLoc; }
+  SourceLocation getLocEnd() const LLVM_READONLY { return EndLoc; }
 };
 
 }  // end namespace clang

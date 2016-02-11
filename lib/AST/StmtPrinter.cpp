@@ -130,6 +130,10 @@ void StmtPrinter::PrintRawDeclStmt(const DeclStmt *S) {
   Decl::printGroup(Decls.data(), Decls.size(), OS, Policy, IndentLevel);
 }
 
+void StmtPrinter::VisitStmtPlaceholder(StmtPlaceholder *Node) {
+  llvm_unreachable("Should not have to print StmtPlaceholder nodes");
+}
+
 void StmtPrinter::VisitNullStmt(NullStmt *Node) {
   Indent() << ";\n";
 }
@@ -2463,6 +2467,10 @@ void StmtPrinter::VisitOpaqueValueExpr(OpaqueValueExpr *Node) {
 void StmtPrinter::VisitTypoExpr(TypoExpr *Node) {
   // TODO: Print something reasonable for a TypoExpr, if necessary.
   assert(false && "Cannot print TypoExpr nodes");
+}
+
+void StmtPrinter::VisitExprPlaceholder(ExprPlaceholder *Node) {
+  llvm_unreachable("Should not have to print ExprPlaceholder nodes");
 }
 
 void StmtPrinter::VisitAsTypeExpr(AsTypeExpr *Node) {

@@ -84,6 +84,10 @@ void StmtProfiler::VisitDeclStmt(const DeclStmt *S) {
     VisitDecl(D);
 }
 
+void StmtProfiler::VisitStmtPlaceholder(const StmtPlaceholder *S) {
+  VisitStmt(S);
+}
+
 void StmtProfiler::VisitNullStmt(const NullStmt *S) {
   VisitStmt(S);
 }
@@ -1450,6 +1454,10 @@ void StmtProfiler::VisitOpaqueValueExpr(const OpaqueValueExpr *E) {
 }
 
 void StmtProfiler::VisitTypoExpr(const TypoExpr *E) {
+  VisitExpr(E);
+}
+
+void StmtProfiler::VisitExprPlaceholder(const ExprPlaceholder *E) {
   VisitExpr(E);
 }
 

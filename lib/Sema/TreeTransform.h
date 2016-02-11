@@ -119,7 +119,6 @@ protected:
   llvm::DenseMap<Decl *, Decl *> TransformedLocalDecls;
 
 public:
-  StmtResult TransformPHStmt(PHStmt *S);
   /// \brief Initializes a new tree transformer.
   TreeTransform(Sema &SemaRef) : SemaRef(SemaRef) { }
 
@@ -1300,6 +1299,12 @@ public:
     return getSema().BuildCoreturnStmt(CoreturnLoc, Result);
   }
 
+  StmtResult RebuildStmtPlaceholder(const StringRef &Name,
+                                    SourceLocation startLoc,
+                                    SourceLocation endLoc) {
+    return getSema().CreateStmtPlaceholder(Name, startLoc, endLoc);
+  }
+
   /// \brief Build a new co_await expression.
   ///
   /// By default, performs semantic analysis to build the new expression.
@@ -1991,6 +1996,13 @@ public:
                                          UnaryExprOrTypeTrait ExprKind,
                                          SourceRange R) {
     return getSema().CreateUnaryExprOrTypeTraitExpr(TInfo, OpLoc, ExprKind, R);
+  }
+
+  ExprResult RebuildExprPlaceholder(const StringRef &Name,
+                                    QualType QT,
+                                    SourceLocation startLoc,
+                                    SourceLocation endLoc) {
+    return getSema().CreateExprPlaceholder(Name, QT, startLoc, endLoc);
   }
 
   /// \brief Build a new sizeof, alignof or vec step expression with an
@@ -3079,9 +3091,6 @@ StmtResult TreeTransform<Derived>::TransformStmt(Stmt *S) {
 
   switch (S->getStmtClass()) {
   case Stmt::NoStmtClass: break;
-  case Stmt::PHStmtClass:
-    return getDerived().TransformPHStmt(cast<PHStmt>(S));
-    break;
 
   // Transform individual statement nodes
 #define STMT(Node, Parent)                                              \
@@ -5983,12 +5992,6 @@ TreeTransform<Derived>::TransformNullStmt(NullStmt *S) {
 
 template<typename Derived>
 StmtResult
-TreeTransform<Derived>::TransformPHStmt(PHStmt *S) {
-  return S;
-}
-
-template<typename Derived>
-StmtResult
 TreeTransform<Derived>::TransformCompoundStmt(CompoundStmt *S) {
   return getDerived().TransformCompoundStmt(S, false);
 }
@@ -6580,6 +6583,16 @@ TreeTransform<Derived>::TransformCoreturnStmt(CoreturnStmt *S) {
   // Always rebuild; we don't know if this needs to be injected into a new
   // context or if the promise type has changed.
   return getDerived().RebuildCoreturnStmt(S->getKeywordLoc(), Result.get());
+}
+
+template<typename Derived>
+StmtResult
+TreeTransform<Derived>::TransformStmtPlaceholder(StmtPlaceholder *S) {
+  if (!getDerived().AlwaysRebuild())
+    return S;
+
+  return getDerived().RebuildStmtPlaceholder(S->getName(),
+                                             S->getLocStart(), S->getLocEnd());
 }
 
 template<typename Derived>
@@ -8245,6 +8258,16 @@ TreeTransform<Derived>::TransformPseudoObjectExpr(PseudoObjectExpr *E) {
     result = SemaRef.checkPseudoObjectRValue(result.get());
 
   return result;
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformExprPlaceholder(ExprPlaceholder *E) {
+  if (!getDerived().AlwaysRebuild())
+    return E;
+
+  return getDerived().RebuildExprPlaceholder(E->getName(), E->getType(),
+                                             E->getLocStart(), E->getLocEnd());
 }
 
 template<typename Derived>
@@ -11703,26 +11726,6 @@ TreeTransform<Derived>::TransformCapturedStmt(CapturedStmt *S) {
 
   return getSema().ActOnCapturedRegionEnd(Body.get());
 }
-
-
-class TreeInstantiator : public TreeTransform<TreeInstantiator> {
-private:
-    std::map<std::string, Stmt*> Arguments;
-public:
-  TreeInstantiator(Sema &SemaRef) : TreeTransform<TreeInstantiator>(SemaRef) {}
-  TreeInstantiator(Sema &SemaRef,
-                   std::map<std::string, Stmt*> args)
-      : TreeTransform<TreeInstantiator>(SemaRef) {
-           Arguments = args;
-      }
-
-  bool AlwaysRebuild() { return true; }
-
-  StmtResult
-      TransformPHStmt(PHStmt *S) {
-          return TransformStmt(Arguments[S->getName()]);
-      }
-};
 
 } // end namespace clang
 

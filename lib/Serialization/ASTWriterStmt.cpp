@@ -62,6 +62,10 @@ void ASTStmtWriter::AddTemplateKWAndArgsInfo(
 void ASTStmtWriter::VisitStmt(Stmt *S) {
 }
 
+void ASTStmtWriter::VisitStmtPlaceholder(StmtPlaceholder *S) {
+  llvm_unreachable("Cannot write StmtPlaceholder nodes");
+}
+
 void ASTStmtWriter::VisitNullStmt(NullStmt *S) {
   VisitStmt(S);
   Writer.AddSourceLocation(S->getSemiLoc(), Record);
@@ -1653,6 +1657,10 @@ void ASTStmtWriter::VisitTypoExpr(TypoExpr *E) {
   VisitExpr(E);
   // TODO: Figure out sane writer behavior for a TypoExpr, if necessary
   assert(false && "Cannot write TypoExpr nodes");
+}
+
+void ASTStmtWriter::VisitExprPlaceholder(ExprPlaceholder *E) {
+  llvm_unreachable("Cannot write ExprPlaceholder nodes");
 }
 
 //===----------------------------------------------------------------------===//

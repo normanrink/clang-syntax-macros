@@ -847,8 +847,8 @@ public:
                   ExprObjectKind OK = OK_Ordinary,
                   Expr *SourceExpr = nullptr)
     : Expr(OpaqueValueExprClass, T, VK, OK,
-           T->isDependentType(), 
-           T->isDependentType() || 
+           T->isDependentType(),
+           T->isDependentType() ||
            (SourceExpr && SourceExpr->isValueDependent()),
            T->isInstantiationDependentType(),
            false),
@@ -4935,11 +4935,34 @@ public:
   }
   SourceLocation getLocStart() const LLVM_READONLY { return SourceLocation(); }
   SourceLocation getLocEnd() const LLVM_READONLY { return SourceLocation(); }
-  
+
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == TypoExprClass;
   }
+};
 
+class ExprPlaceholder : public Expr, public Placeholder {
+  SourceLocation StartLoc, EndLoc;
+
+public:
+  ExprPlaceholder(const StringRef &name, QualType QT,
+                  SourceLocation startLoc, SourceLocation endLoc)
+    : Expr(ExprPlaceholderClass, EmptyShell()),
+    Placeholder(name, true),
+      StartLoc(startLoc), EndLoc(endLoc) {
+    setType(QT);
+  }
+
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == ExprPlaceholderClass;
+  }
+
+  SourceLocation getLocStart() const LLVM_READONLY { return StartLoc; }
+  SourceLocation getLocEnd() const LLVM_READONLY { return EndLoc; }
 };
 } // end namespace clang
 

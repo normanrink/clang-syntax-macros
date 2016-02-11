@@ -17,10 +17,10 @@
 #include "clang/AST/ExternalASTSource.h"
 #include "clang/AST/Stmt.h"
 #include "clang/Parse/ParseDiagnostic.h"
-#include "clang/Parse/Parser.h"
+#include "clang/Parse/CaptureParser.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
 #include "clang/Sema/ExternalSemaSource.h"
-#include "clang/Sema/Sema.h"
+#include "clang/Sema/CaptureSema.h"
 #include "clang/Sema/SemaConsumer.h"
 #include "llvm/Support/CrashRecoveryContext.h"
 #include <cstdio>
@@ -102,8 +102,8 @@ void clang::ParseAST(Preprocessor &PP, ASTConsumer *Consumer,
                      CodeCompleteConsumer *CompletionConsumer,
                      bool SkipFunctionBodies) {
 
-  std::unique_ptr<Sema> S(
-      new Sema(PP, Ctx, *Consumer, TUKind, CompletionConsumer));
+  std::unique_ptr<CaptureSema> S(
+      new CaptureSema(PP, Ctx, *Consumer, TUKind, CompletionConsumer));
 
   // Recover resources if we crash before exiting this method.
   llvm::CrashRecoveryContextCleanupRegistrar<Sema> CleanupSema(S.get());
@@ -124,8 +124,8 @@ void clang::ParseAST(Sema &S, bool PrintStats, bool SkipFunctionBodies) {
 
   ASTConsumer *Consumer = &S.getASTConsumer();
 
-  std::unique_ptr<Parser> ParseOP(
-      new Parser(S.getPreprocessor(), S, SkipFunctionBodies));
+  std::unique_ptr<CaptureParser> ParseOP(
+      new CaptureParser(S.getPreprocessor(), S, SkipFunctionBodies));
   Parser &P = *ParseOP.get();
 
   llvm::CrashRecoveryContextCleanupRegistrar<const void, ResetStackCleanup>

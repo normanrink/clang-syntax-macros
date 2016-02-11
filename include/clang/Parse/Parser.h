@@ -48,6 +48,7 @@ namespace clang {
   class OMPClause;
   class ObjCTypeParamList;
   class ObjCTypeParameter;
+  class CaptureParser;
 
 /// Parser - This implements a parser for the C family of languages.  After
 /// parsing units of the grammar, productions are invoked to handle whatever has
@@ -60,6 +61,7 @@ class Parser : public CodeCompletionHandler {
   friend class ObjCDeclContextSwitch;
   friend class ParenBraceBracketBalancer;
   friend class BalancedDelimiterTracker;
+  friend class CaptureParser;
 
   Preprocessor &PP;
 
@@ -1387,6 +1389,7 @@ public:
     IsTypeCast
   };
 
+  virtual
   ExprResult ParseExpression(TypeCastState isTypeCast = NotTypeCast);
   ExprResult ParseConstantExpression(TypeCastState isTypeCast = NotTypeCast);
   ExprResult ParseConstraintExpression();
@@ -1644,8 +1647,8 @@ private:
   /// A SmallVector of types.
   typedef SmallVector<ParsedType, 12> TypeVector;
 
-  StmtResult ParseStatement(SourceLocation *TrailingElseLoc = nullptr,
-                            bool AllowOpenMPStandalone = false);
+  virtual StmtResult ParseStatement(SourceLocation *TrailingElseLoc = nullptr,
+                                    bool AllowOpenMPStandalone = false);
   enum AllowedContsructsKind {
     /// \brief Allow any declarations, statements, OpenMP directives.
     ACK_Any,
@@ -1654,7 +1657,7 @@ private:
     /// \brief Allow statements and all executable OpenMP directives
     ACK_StatementsOpenMPAnyExecutable
   };
-  StmtResult
+  virtual StmtResult
   ParseStatementOrDeclaration(StmtVector &Stmts, AllowedContsructsKind Allowed,
                               SourceLocation *TrailingElseLoc = nullptr);
   StmtResult ParseStatementOrDeclarationAfterAttributes(

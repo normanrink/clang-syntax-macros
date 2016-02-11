@@ -30,7 +30,7 @@
 #include "clang/Lex/PTHManager.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/CodeCompleteConsumer.h"
-#include "clang/Sema/Sema.h"
+#include "clang/Sema/CaptureSema.h"
 #include "clang/Serialization/ASTReader.h"
 #include "clang/Serialization/GlobalModuleIndex.h"
 #include "llvm/ADT/Statistic.h"
@@ -529,8 +529,8 @@ CompilerInstance::createCodeCompletionConsumer(Preprocessor &PP,
 
 void CompilerInstance::createSema(TranslationUnitKind TUKind,
                                   CodeCompleteConsumer *CompletionConsumer) {
-  TheSema.reset(new Sema(getPreprocessor(), getASTContext(), getASTConsumer(),
-                         TUKind, CompletionConsumer));
+  TheSema.reset(new CaptureSema(getPreprocessor(), getASTContext(), getASTConsumer(),
+                                TUKind, CompletionConsumer));
 }
 
 // Output Files

@@ -123,6 +123,10 @@ void ASTStmtReader::VisitStmt(Stmt *S) {
   assert(Idx == NumStmtFields && "Incorrect statement field count");
 }
 
+void ASTStmtReader::VisitStmtPlaceholder(StmtPlaceholder *S) {
+  llvm_unreachable("Cannot read StmtPlaceholder nodes");
+}
+
 void ASTStmtReader::VisitNullStmt(NullStmt *S) {
   VisitStmt(S);
   S->setSemiLoc(ReadSourceLocation(Record, Idx));
@@ -1655,6 +1659,10 @@ void ASTStmtReader::VisitOpaqueValueExpr(OpaqueValueExpr *E) {
 
 void ASTStmtReader::VisitTypoExpr(TypoExpr *E) {
   llvm_unreachable("Cannot read TypoExpr nodes");
+}
+
+void ASTStmtReader::VisitExprPlaceholder(ExprPlaceholder *E) {
+  llvm_unreachable("Cannot read ExprPlaceholder nodes");
 }
 
 //===----------------------------------------------------------------------===//

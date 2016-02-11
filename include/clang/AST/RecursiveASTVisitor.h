@@ -1930,6 +1930,7 @@ DEF_TRAVERSE_STMT(DeclStmt, {
 
 // These non-expr stmts (most of them), do not need any action except
 // iterating over the children.
+DEF_TRAVERSE_STMT(StmtPlaceholder, {})
 DEF_TRAVERSE_STMT(BreakStmt, {})
 DEF_TRAVERSE_STMT(CXXTryStmt, {})
 DEF_TRAVERSE_STMT(CaseStmt, {})
@@ -2287,6 +2288,7 @@ DEF_TRAVERSE_STMT(CapturedStmt, { TRY_TO(TraverseDecl(S->getCapturedDecl())); })
 DEF_TRAVERSE_STMT(CXXOperatorCallExpr, {})
 DEF_TRAVERSE_STMT(OpaqueValueExpr, {})
 DEF_TRAVERSE_STMT(TypoExpr, {})
+DEF_TRAVERSE_STMT(ExprPlaceholder, {})
 DEF_TRAVERSE_STMT(CUDAKernelCallExpr, {})
 
 // These operators (all of them) do not need any action except

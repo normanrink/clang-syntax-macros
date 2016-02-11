@@ -283,47 +283,44 @@ class Sema {
   bool shouldLinkPossiblyHiddenDecl(LookupResult &Old, const NamedDecl *New);
 
 public:
-  typedef std::pair<Stmt*, std::vector<std::string>> StmtPairTy;
-  typedef std::map<const std::string, StmtPairTy> StmtCapture;
-
-  typedef std::pair<Expr*, std::vector<std::string>> ExprPairTy;
-  typedef std::map<const std::string, ExprPairTy> ExprCapture;
-
-private:
-  StmtCapture CapturedStmts;
-  ExprCapture CapturedExprs;
-
-public:
-  StmtPairTy getCapturedStmt(const StringRef &N) {
-    if (CapturedStmts.find(N.str()) != CapturedStmts.end())
-      return CapturedStmts[N.str()];
-    return StmtPairTy(nullptr, std::vector<std::string>());
+  virtual StmtResult ActOnCaptured(const StringRef &N,
+                                   std::vector<Stmt*> &ActualArgs) {
+    return StmtResult();
   }
-  Expr *getCapturedExpr(const StringRef &N) {
-    if (CapturedExprs.find(N.str()) != CapturedExprs.end())
-      return CapturedExprs[N.str()].first;
-    return nullptr;
+  virtual ExprResult ActOnCaptured(const StringRef &N,
+                                   std::vector<Expr*> &ActualArgs) {
+    return ExprResult();
   }
 
-  void capture(const StringRef &N, Stmt *S, std::vector<std::string> params) {
-      CapturedStmts[N.str()] = StmtPairTy(S, params);
+  virtual void Capture(StringRef N, Stmt* ToCapture,
+                       std::vector<StringRef> FormalArgs) {}
+  virtual void Capture(StringRef N, Expr* ToCapture,
+                       std::vector<StringRef> FormalArgs) {}
+
+  virtual StmtResult CreateStmtPlaceholder(const StringRef &Name,
+                                           SourceLocation startLoc,
+                                           SourceLocation endLoc) {
+    return StmtResult();
   }
-  void capture(const StringRef &N, Expr *E, std::vector<std::string> params) {
-      CapturedExprs[N.str()] = ExprPairTy(E, params);
+  virtual ExprResult CreateExprPlaceholder(const StringRef &Name,
+                                           QualType QT,
+                                           SourceLocation startLoc,
+                                           SourceLocation endLoc) {
+    return ExprResult();
   }
 
-  void ActOnCaptureStmt(const StringRef &N, Stmt *S, std::vector<std::string> params) {
-    capture(N, S, params);
+  virtual StmtResult ActOnStmtPlaceholder(const StringRef &N,
+                                          SourceLocation startLoc,
+                                          SourceLocation endLoc) {
+    return StmtResult();
   }
-  void ActOnCaptureExpr(const StringRef &N, Expr *E) {
-    std::vector<std::string> params;
-    capture(N, E, params);
+  virtual ExprResult ActOnExprPlaceholder(const StringRef &N,
+                                          ParsedType PTy,
+                                          SourceLocation startLoc,
+                                          SourceLocation endLoc) {
+    return ExprResult();
   }
 
-  PHStmt *ActOnPHStmt(const StringRef &N, SourceLocation start,
-                      SourceLocation end) {
-    return new (Context) PHStmt(N, start, end);
-  }
 public:
   typedef OpaquePtr<DeclGroupRef> DeclGroupPtrTy;
   typedef OpaquePtr<TemplateName> TemplateTy;
@@ -1074,7 +1071,7 @@ public:
   Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
        TranslationUnitKind TUKind = TU_Complete,
        CodeCompleteConsumer *CompletionConsumer = nullptr);
-  ~Sema();
+  virtual ~Sema();
 
   /// \brief Perform initialization that occurs after the parser has been
   /// initialized but before it parses anything.
