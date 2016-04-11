@@ -33,7 +33,7 @@ public:
 
   ~CaptureSema() {}
 
-  typedef std::pair<Stmt*, std::vector<StringRef>> CapturedStmtPairTy;
+  typedef std::pair<Stmt*, std::vector<std::pair<StringRef, StringRef>>> CapturedStmtPairTy;
   typedef std::map<const std::string, CapturedStmtPairTy> CapturedStmtTy;
   typedef std::pair<Expr*, std::vector<StringRef>> CapturedExprPairTy;
   typedef std::map<const std::string, CapturedExprPairTy> CapturedExprTy;
@@ -54,12 +54,17 @@ public:
                            std::vector<Expr*> &ActualArgs) override;
 
   void Capture(StringRef N, Stmt* ToCapture,
-               std::vector<StringRef> FormalArgs) override {
+               std::vector<std::pair<StringRef, StringRef>> FormalArgs) override {
     CapturedStmts[N.str()] = CapturedStmtPairTy(ToCapture, FormalArgs);
   }
   void Capture(StringRef N, Expr* ToCapture,
                std::vector<StringRef> FormalArgs) override {
     CapturedExprs[N.str()] = CapturedExprPairTy(ToCapture, FormalArgs);
+  }
+
+  const std::vector<std::pair<StringRef, StringRef>>
+  getStmtFormalArgs(StringRef N) override {
+    return CapturedStmts[N.str()].second;
   }
 
   StmtResult CreateStmtPlaceholder(const StringRef &Name,

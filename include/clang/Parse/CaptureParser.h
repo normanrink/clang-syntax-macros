@@ -50,7 +50,7 @@ private:
   TryParseCaptureHeader(CaptureHeader &CH, const StringRef &kind,
                         parser ReplacementParser);
 
-  const StringRef& ParseCaptureIdentifier();
+  StringRef ParseCaptureIdentifier();
 
   TypeResult ParseNodeType();
 
@@ -63,10 +63,23 @@ private:
   void ParseCaptureActualArgs(std::vector<T> &result, std::function<T()> TParser);
 
   template<typename T>
-    ActionResult<T*> ParseExpandingCapture(std::function<T*()> tParser);
+  ActionResult<T*> ParseExpandingCapture(std::function<T*()> tParser);
+
+  StmtResult
+  ParseExpandingStmtCapture(std::function<Stmt*()> StmtParser,
+                            std::function<Expr*()> ExprParser);
 
   const std::function<StringRef()> StringParser = [this] {
     return ParseCaptureIdentifier();
+  };
+
+  const std::function<std::pair<StringRef, StringRef>()> PairParser = [this] {
+    const StringRef &typeID = ParseCaptureIdentifier();
+    assert((typeID.equals("stmt") || typeID.equals("expr"))
+           && "unexpected node type");
+
+    const StringRef &name = ParseCaptureIdentifier();
+    return std::pair<StringRef, StringRef>(typeID, name);
   };
 };
 }// end namespace clang

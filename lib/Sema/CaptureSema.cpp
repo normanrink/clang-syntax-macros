@@ -34,7 +34,14 @@ CaptureSema::ActOnCapturedTree(std::pair<T*, std::vector<StringRef>> tree,
 StmtResult
 CaptureSema::ActOnCaptured(const StringRef &N, std::vector<Stmt*> &ActualArgs) {
   CapturedStmtPairTy tree = CapturedStmts[N];
-  return ActOnCapturedTree(tree, ActualArgs);
+
+  Stmt *s = tree.first;
+  std::vector<StringRef> formalNames;
+  for (auto fi: tree.second)
+    formalNames.push_back(fi.second);
+  std::pair<Stmt*,std::vector<StringRef>> smallTree(s, formalNames);
+
+  return ActOnCapturedTree(smallTree, ActualArgs);
 }
 
 ExprResult

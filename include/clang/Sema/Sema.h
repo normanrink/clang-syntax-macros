@@ -293,9 +293,14 @@ public:
   }
 
   virtual void Capture(StringRef N, Stmt* ToCapture,
-                       std::vector<StringRef> FormalArgs) {}
+                       std::vector<std::pair<StringRef, StringRef>> FormalArgs) {}
   virtual void Capture(StringRef N, Expr* ToCapture,
                        std::vector<StringRef> FormalArgs) {}
+
+  virtual const std::vector<std::pair<StringRef, StringRef>>
+  getStmtFormalArgs(StringRef N) {
+    return std::vector<std::pair<StringRef, StringRef>>();
+  }
 
   virtual StmtResult CreateStmtPlaceholder(const StringRef &Name,
                                            SourceLocation startLoc,

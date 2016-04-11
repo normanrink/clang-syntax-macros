@@ -61,7 +61,7 @@ CaptureParser::TryParseCaptureHeader(CaptureHeader &Header, const StringRef &Nod
   return true;
 }
 
-const StringRef&
+StringRef
 CaptureParser::ParseCaptureIdentifier() {
   assert(Tok.is(tok::identifier));
   const StringRef &id = Tok.getIdentifierInfo()->getName();
@@ -118,8 +118,8 @@ CaptureParser::ParseCaptureActualArgs(std::vector<T> &result,
       T t = TParser();
       result.push_back(t);
 
-      if (Tok.is(tok::comma))
-        ConsumeToken(); // eat the ','
+      if (Tok.is(tok::cash)) // use '$' to separate actual arguments
+        ConsumeToken(); // eat the '$'
     }
     assert(Tok.is(tok::r_paren));
     BDT.consumeClose(); // eat the ')'
@@ -138,6 +138,45 @@ CaptureParser::ParseExpandingCapture(std::function<T*()> tParser) {
 }
 
 StmtResult
+CaptureParser::ParseExpandingStmtCapture(std::function<Stmt*()> StmtParser,
+                                         std::function<Expr*()> ExprParser) {
+  StringRef id = ParseCaptureIdentifier();
+
+  const std::vector<std::pair<StringRef, StringRef>> &formals =
+    Actions.getStmtFormalArgs(id);
+
+  std::vector<Stmt*> ActualArgs; // rely on the fact that every 'Expr' is also a 'Stmt'
+
+  if (Tok.is(tok::l_paren)) { // We have a parameter list.
+    BalancedDelimiterTracker BDT(*this, tok::l_paren);
+    BDT.consumeOpen(); // eat the '('
+
+    unsigned index = 0;
+    while (!Tok.is(tok::r_paren)) {
+      if (formals[index].first.equals("stmt")) {
+        Stmt *s = StmtParser();
+        ActualArgs.push_back(s);
+      } else if (formals[index].first.equals("expr")) {
+        Expr *e = ExprParser();
+        ActualArgs.push_back(e);
+      } else {
+        assert(0 && "unexpected node type");
+      }
+      ++index;
+
+      if (Tok.is(tok::cash)) // use '$' to separate actual arguments
+        ConsumeToken(); // eat the '$'
+    }
+    assert(Tok.is(tok::r_paren));
+    BDT.consumeClose(); // eat the ')'
+  } else {
+     assert(!formals.size() && "parameter list missing");
+  }
+
+  return Actions.ActOnCaptured(id, ActualArgs);
+}
+
+StmtResult
 CaptureParser::ParseStatementOrDeclaration(StmtVector &Stmts,
                                            AllowedContsructsKind Allowed,
                                            SourceLocation *TrailingElseLoc) {
@@ -147,12 +186,16 @@ CaptureParser::ParseStatementOrDeclaration(StmtVector &Stmts,
     ParseStatementOrDeclaration(Stmts, Allowed, TrailingElseLoc);
   return S.get();
   };
+  std::function<Expr*()> ExprParser = [this] {
+    ExprResult E = ParseExpression();
+    return E.get();
+  };
 
   if (Tok.is(tok::cash)) {
     // Expand into a captured subtree.
     ConsumeToken(); // eat the '$'
 
-    return ParseExpandingCapture(StmtParser);
+    return ParseExpandingStmtCapture(StmtParser, ExprParser);
   } else if (Tok.is(tok::cashcashcash)) {
     // Parse a placeholder statement.
     SourceLocation SLoc = ConsumeToken();
@@ -171,10 +214,10 @@ CaptureParser::ParseStatementOrDeclaration(StmtVector &Stmts,
       CashCash.setKind(tok::cashcash);
       UnconsumeToken(CashCash);
     } else {
-      std::vector<StringRef> formalArgs;
+      std::vector<std::pair<StringRef, StringRef>> formalArgs;
       std::vector<Stmt*> defaultArgs;
       ParseCaptureFormalArgs(formalArgs, defaultArgs,
-                             StringParser, StmtParser, (Stmt*)nullptr);
+                             PairParser, StmtParser, (Stmt*)nullptr);
 
       StmtResult Stmt = ParseStatementOrDeclaration(Stmts,
                                                     Allowed,
@@ -199,7 +242,7 @@ CaptureParser::ParseStatementOrDeclaration(StmtVector &Stmts,
 
 ExprResult
 CaptureParser::ParseExpression(TypeCastState isTypeCast) {
- std::function<Expr*()> ExprParser = [this] {
+  std::function<Expr*()> ExprParser = [this] {
     ExprResult E = ParseExpression();
     return E.get();
   };
