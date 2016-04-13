@@ -20,6 +20,7 @@ add_clang_library(clangParse
   ParseTemplate.cpp
   ParseTentative.cpp
   Parser.cpp
+  CaptureNode.cpp
   CaptureParser.cpp
 
   LINK_LIBS

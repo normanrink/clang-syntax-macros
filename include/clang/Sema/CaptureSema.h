@@ -15,8 +15,8 @@
 #ifndef LLVM_CLANG_SEMA_CAPTURE_SEMA_H
 #define LLVM_CLANG_SEMA_CAPTURE_SEMA_H
 
+#include "clang/Parse/CaptureNode.h"
 #include "clang/Sema/Sema.h"
-#include "clang/Parse/CaptureParser.h"
 #include "../lib/Sema/TreeInstantiator.h"
 
 #include <list>
@@ -39,22 +39,13 @@ public:
   ~CaptureSema() {}
 
 public:
-  struct FormalCaptureNode {
-    SourceLocation Loc;
-    // The AST node type:
-    CaptureParser::CapType NodeType;
-    // For 'expr' nodes, the type of the expression:
-    QualType QT;
-  };
 
-  typedef std::map<StringRef, FormalCaptureNode> CapSingleEnvTy;
-  typedef std::list<CapSingleEnvTy> CapEnvTy;
+  typedef std::map<StringRef, FormalNode> CapFrameTy;
+  typedef std::list<CapFrameTy> CapEnvTy;
 
-  bool getCaptureQualType(QualType &Type, const StringRef &name);
-  bool getCaptureNodeType(CaptureParser::CapType &NodeType, const StringRef &name);
-  bool getCaptureNode(FormalCaptureNode &fcn, const StringRef &name);
+  bool getFormalNode(FormalNode &res, const StringRef &name);
 
-  void PushCapEnv(std::vector<CaptureParser::FormalArgument> &formals);
+  void PushCapEnv(FormalNodesTy &formals);
   void PopCapEnv();
 
 private:
@@ -62,20 +53,15 @@ private:
 
 private:
   struct CapturedNode {
-    SourceLocation Loc;
-    CaptureParser::CapType Type;
-    // YIKES: would be better without a 'void' pointer:
-    void *Node;
-    // formal arguments:
-    std::vector<CaptureParser::FormalArgument> Formals;
+    Node N;
+    FormalNodesTy FormalArgs;
   };
 
   typedef std::map<StringRef, CapturedNode> CapturesTy;
 
 public:
-  void
-  getFormalArgTypes(std::vector<CaptureParser::CapType> &NodeTypes,
-                    const StringRef &N, SourceLocation Loc);
+  void getFormalArgTypes(std::vector<Node::NodeType> &result,
+                         const StringRef &name, SourceLocation loc);
 
 private:
   CapturesTy Captures;
@@ -87,31 +73,30 @@ private:
 
 public:
   void *
-  ActOnCaptured(const StringRef &N, CaptureParser::CapType expected,
-                std::vector<void*> &ActualArgs, SourceLocation Loc);
+  ActOnCaptured(const StringRef &N, Node::NodeType expected,
+                std::vector<Node> &actualArgs, SourceLocation loc);
 
-  void Capture(StringRef N, SourceLocation Loc,
-               CaptureParser::CapType Type, void* ToCapture,
-               std::vector<CaptureParser::FormalArgument> FormalArgs) {
-    CapturedNode cap { Loc, Type, ToCapture, FormalArgs };
-    Captures[N] = cap;
+  void Capture(StringRef name, Node astNode,
+               FormalNodesTy &formals) {
+    CapturedNode cn = { astNode, formals };
+    Captures[name] = cn;
   }
 
-  StmtResult CreateStmtPlaceholder(const StringRef &Name,
+  StmtResult CreateStmtPlaceholder(const StringRef &name,
                                    SourceLocation startLoc,
-                                   SourceLocation endLoc)  override {
-    return new (Context) StmtPlaceholder(Name, startLoc, endLoc);
+                                   SourceLocation endLoc) override {
+    return new (Context) StmtPlaceholder(name, startLoc, endLoc);
   }
-  ExprResult CreateExprPlaceholder(const StringRef &Name,
+  ExprResult CreateExprPlaceholder(const StringRef &name,
                                QualType QT,
                                SourceLocation startLoc,
-                               SourceLocation endLoc)  override {
-    return new (Context) ExprPlaceholder(Name, QT, startLoc, endLoc);
+                               SourceLocation endLoc)  override  {
+    return new (Context) ExprPlaceholder(name, QT, startLoc, endLoc);
   }
 
-  void *ActOnPlaceholder(const StringRef &N,
-                         SourceLocation Loc,
-                         CaptureParser::CapType NodeType);
+  void *ActOnPlaceholder(const StringRef &name,
+                         SourceLocation loc,
+                         Node::NodeType ndType);
 };
 
 } // end namespace clang

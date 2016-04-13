@@ -283,25 +283,6 @@ class Sema {
   bool shouldLinkPossiblyHiddenDecl(LookupResult &Old, const NamedDecl *New);
 
 public:
-  virtual StmtResult ActOnCaptured(const StringRef &N,
-                                   std::vector<Stmt*> &ActualArgs) {
-    return StmtResult();
-  }
-  virtual ExprResult ActOnCaptured(const StringRef &N,
-                                   std::vector<Expr*> &ActualArgs) {
-    return ExprResult();
-  }
-
-  virtual void Capture(StringRef N, Stmt* ToCapture,
-                       std::vector<std::pair<StringRef, StringRef>> FormalArgs) {}
-  virtual void Capture(StringRef N, Expr* ToCapture,
-                       std::vector<StringRef> FormalArgs) {}
-
-  virtual const std::vector<std::pair<StringRef, StringRef>>
-  getStmtFormalArgs(StringRef N) {
-    return std::vector<std::pair<StringRef, StringRef>>();
-  }
-
   virtual StmtResult CreateStmtPlaceholder(const StringRef &Name,
                                            SourceLocation startLoc,
                                            SourceLocation endLoc) {
@@ -311,18 +292,6 @@ public:
                                            QualType QT,
                                            SourceLocation startLoc,
                                            SourceLocation endLoc) {
-    return ExprResult();
-  }
-
-  virtual StmtResult ActOnStmtPlaceholder(const StringRef &N,
-                                          SourceLocation startLoc,
-                                          SourceLocation endLoc) {
-    return StmtResult();
-  }
-  virtual ExprResult ActOnExprPlaceholder(const StringRef &N,
-                                          ParsedType PTy,
-                                          SourceLocation startLoc,
-                                          SourceLocation endLoc) {
     return ExprResult();
   }
 

@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Parse/CaptureParser.h"
+#include "clang/Parse/CaptureNode.h"
 #include "clang/Sema/CaptureSema.h"
 #include <RAIIObjectsForParser.h>
 
@@ -19,12 +20,12 @@
 
 using namespace clang;
 
-
-CaptureParser::CaptureParser(Preprocessor &pp, Sema &actions, bool skipFunctionBodies)
-  : Parser(pp, actions, skipFunctionBodies) {}
+CaptureParser::CaptureParser(Preprocessor &pp, Sema &actions,
+                                     bool skipFunctionBodies)
+  : Parser(pp, actions, skipFunctionBodies), CapSema((CaptureSema*)&actions) {}
 
 bool
-CaptureParser::TryParseCaptureHeader(StringRef &name, CapType expected) {
+CaptureParser::TryParseCapture(StringRef &name, Node::NodeType expected) {
   assert(Tok.is(tok::l_square));
 
   Token Next = NextToken();
@@ -33,8 +34,8 @@ CaptureParser::TryParseCaptureHeader(StringRef &name, CapType expected) {
     return false;
   }
 
-  const StringRef &captureTypeName = Next.getIdentifierInfo()->getName();
-  if (!captureTypeName.equals(CaptureTypeString(expected)))
+  const StringRef &ndTypeName = Next.getIdentifierInfo()->getName();
+  if (!ndTypeName.equals(Node::getAsString(expected)))
     return false; // Exit without consuming any tokens.
 
   BalancedDelimiterTracker BDT(*this, tok::l_square);
@@ -70,22 +71,24 @@ CaptureParser::ParseExprType() {
 }
 
 void
-CaptureParser::ParseCaptureFormalArgument(FormalArgument &Result) {
+CaptureParser::ParseCaptureFormalArgument(FormalNode &Result) {
   SourceLocation Loc = Tok.getLocation();
-  StringRef typeName = ParseCaptureIdentifier();
-  if (!isCaptureType(typeName)) {
-    Diag(Loc, diag::err_expected_node_type) << typeName;
+
+  StringRef ndTypeName = ParseCaptureIdentifier();
+  if (!Node::isNodeType(ndTypeName)) {
+    Diag(Loc, diag::err_expected_node_type) << ndTypeName;
     // TODO: What?
   }
 
-  Result.Type = CaptureType(typeName);
-  switch(Result.Type) {
-    case CAPTY_STMT:
+  Result.Loc = Loc;
+  Result.NdType = Node::getAsNodeType(ndTypeName);
+  switch(Result.NdType) {
+    case Node::ND_STMT:
       break;
-    case CAPTY_EXPR:
+    case Node::ND_EXPR:
       Result.TR = ParseExprType();
       break;
-    case CAPTY_DECL:
+    case Node::ND_DECL:
       assert(0 && "'decl' not implemented yet");
       break;
     default:
@@ -97,13 +100,13 @@ CaptureParser::ParseCaptureFormalArgument(FormalArgument &Result) {
 }
 
 void
-CaptureParser::ParseCaptureFormalArgs(std::vector<FormalArgument> &Formals) {
+CaptureParser::ParseCaptureFormalArgs(FormalNodesTy &Formals) {
   if (Tok.is(tok::l_paren)) { // We have a parameter list.
     BalancedDelimiterTracker BDT(*this, tok::l_paren);
     BDT.consumeOpen(); // eat the '('
 
     while (!Tok.is(tok::r_paren)) {
-      FormalArgument f;
+      FormalNode f;
       ParseCaptureFormalArgument(f);
       Formals.push_back(f);
 
@@ -117,11 +120,12 @@ CaptureParser::ParseCaptureFormalArgs(std::vector<FormalArgument> &Formals) {
 }
 
 void
-CaptureParser::ParseCaptureActualArgs(std::vector<void*> &result,
-                                      const StringRef &N) {
-  CaptureSema *CapSema = (CaptureSema*)(&Actions);
-  std::vector<CapType> formalTypes;
-  CapSema->getFormalArgTypes(formalTypes, N, Tok.getLocation());
+CaptureParser::ParseCaptureActualArgs(std::vector<Node> &result,
+                                      const StringRef &name) {
+  std::vector<Node::NodeType> formalNdTypes;
+  // NOTE: Here we need context-sensitive information. We must ask the
+  // semantic analysis for the AST node types of the formal arguments:
+  CapSema->getFormalArgTypes(formalNdTypes, name, Tok.getLocation());
 
   unsigned index = 0;
   if (Tok.is(tok::l_paren)) { // We have a parameter list.
@@ -129,19 +133,21 @@ CaptureParser::ParseCaptureActualArgs(std::vector<void*> &result,
     BDT.consumeOpen(); // eat the '('
 
     while (!Tok.is(tok::r_paren)) {
-      if (formalTypes.size() <= index)
+      if (formalNdTypes.size() <= index)
         break;
 
-      switch (formalTypes[index]) {
-        case CAPTY_STMT: {
+      switch (formalNdTypes[index]) {
+        case Node::ND_STMT: {
           StmtVector Stmts;
-          StmtResult Stmt = ParseStatementOrDeclaration(Stmts, ACK_Any);
-          result.push_back(Stmt.get());
+          Stmt *stmt = ParseStatementOrDeclaration(Stmts, ACK_Any).get();
+          Node N(stmt, stmt->getLocStart(), Node::ND_STMT);
+          result.push_back(N);
           break;
         }
-        case CAPTY_EXPR: {
-          ExprResult expr = ParseExpression(MaybeTypeCast);
-          result.push_back(expr.get());
+        case Node::ND_EXPR: {
+          Expr *expr = ParseExpression(MaybeTypeCast).get();
+          Node N(expr, expr->getExprLoc(), Node::ND_EXPR, expr->getType());
+          result.push_back(N);
           break;
         }
         default:
@@ -156,9 +162,9 @@ CaptureParser::ParseCaptureActualArgs(std::vector<void*> &result,
     BDT.consumeClose(); // eat the ')'
   }
 
-  if (index != formalTypes.size()) {
-    Diag(Tok.getLocation(), diag::err_number_of_actuals) << N
-      << (unsigned)formalTypes.size()
+  if (index != formalNdTypes.size()) {
+    Diag(Tok.getLocation(), diag::err_number_of_actuals) << name
+      << (unsigned)formalNdTypes.size()
       << index;
   }
 }
@@ -166,57 +172,16 @@ CaptureParser::ParseCaptureActualArgs(std::vector<void*> &result,
 
 template<typename T>
 ActionResult<T*>
-CaptureParser::ParseExpandingCapture(CaptureParser::CapType NodeType,
-                                     SourceLocation Loc) {
-  CaptureSema *CapSema = (CaptureSema*)(&Actions);
-  std::vector<void*> ActualArgs;
+CaptureParser::ExpandCaptured(Node::NodeType ndType,
+                              SourceLocation loc) {
+  std::vector<Node> actualArgs;
 
   StringRef name = ParseCaptureIdentifier();
-  ParseCaptureActualArgs(ActualArgs, name);
-  T *Res = (T*)CapSema->ActOnCaptured(name, NodeType, ActualArgs, Loc);
+  ParseCaptureActualArgs(actualArgs, name);
+  T *Res = (T*)CapSema->ActOnCaptured(name, ndType, actualArgs, loc);
   return ActionResult<T*>(Res);
 }
 
-/*
-StmtResult
-CaptureParser::ParseExpandingStmtCapture(std::function<Stmt*()> StmtParser,
-                                         std::function<Expr*()> ExprParser) {
-  StringRef id = ParseCaptureIdentifier();
-
-  const std::vector<std::pair<StringRef, StringRef>> &formals =
-    Actions.getStmtFormalArgs(id);
-
-  std::vector<Stmt*> ActualArgs; // rely on the fact that every 'Expr' is also a 'Stmt'
-
-  if (Tok.is(tok::l_paren)) { // We have a parameter list.
-    BalancedDelimiterTracker BDT(*this, tok::l_paren);
-    BDT.consumeOpen(); // eat the '('
-
-    unsigned index = 0;
-    while (!Tok.is(tok::r_paren)) {
-      if (formals[index].first.equals("stmt")) {
-        Stmt *s = StmtParser();
-        ActualArgs.push_back(s);
-      } else if (formals[index].first.equals("expr")) {
-        Expr *e = ExprParser();
-        ActualArgs.push_back(e);
-      } else {
-        assert(0 && "unexpected node type");
-      }
-      ++index;
-
-      if (Tok.is(tok::cash)) // use '$' to separate actual arguments
-        ConsumeToken(); // eat the '$'
-    }
-    assert(Tok.is(tok::r_paren));
-    BDT.consumeClose(); // eat the ')'
-  } else {
-     assert(!formals.size() && "parameter list missing");
-  }
-
-  return Actions.ActOnCaptured(id, ActualArgs);
-}
-*/
 
 StmtResult
 CaptureParser::ParseStatementOrDeclaration(StmtVector &Stmts,
@@ -224,91 +189,30 @@ CaptureParser::ParseStatementOrDeclaration(StmtVector &Stmts,
                                            SourceLocation *TrailingElseLoc) {
   TryParseCapture();
 
-  CaptureSema *CapSema = (CaptureSema*)(&Actions);
   if (Tok.is(tok::cash)) {
     // Expand into a captured subtree.
     ConsumeToken(); // eat the '$'
-    return ParseExpandingCapture<Stmt>(CAPTY_STMT, Tok.getLocation());
+    return ExpandCaptured<Stmt>(Node::ND_STMT, Tok.getLocation());
   } else if (Tok.is(tok::cashcashcash)) {
     // Parse a placeholder statement.
     SourceLocation SLoc = ConsumeToken(); // eat the '$$$'
-    StringRef id = ParseCaptureIdentifier();
-    return (Expr*)CapSema->ActOnPlaceholder(id, SLoc, CAPTY_STMT);
+    StringRef name = ParseCaptureIdentifier();
+    return (Expr*)CapSema->ActOnPlaceholder(name, SLoc, Node::ND_STMT);
   } else {
     return Parser::ParseStatementOrDeclaration(Stmts, Allowed, TrailingElseLoc);
   }
 }
-  /*
-  std::function<Stmt*()> StmtParser = [this, Allowed, TrailingElseLoc] {
-  StmtVector Stmts;
-  StmtResult S =
-    ParseStatementOrDeclaration(Stmts, Allowed, TrailingElseLoc);
-  return S.get();
-  };
-  std::function<Expr*()> ExprParser = [this] {
-    ExprResult E = ParseExpression();
-    return E.get();
-  };
-
-  if (Tok.is(tok::cash)) {
-    // Expand into a captured subtree.
-    ConsumeToken(); // eat the '$'
-
-    return ParseExpandingStmtCapture(StmtParser, ExprParser);
-  } else if (Tok.is(tok::cashcashcash)) {
-    // Parse a placeholder statement.
-    SourceLocation SLoc = ConsumeToken();
-
-    StringRef id = ParseCaptureIdentifier();
-
-    return Actions.ActOnStmtPlaceholder(id, SLoc, SLoc);
-  } else if (Tok.is(tok::cashcash)) {
-    // Try to capture a statement.
-    ConsumeToken(); // eat the '$$'
-
-    CaptureHeader Header;
-    Header.RK = RK_None; // Default to no replacement for statements.
-    if (!TryParseCaptureHeader(Header, "stmt", StmtParser)) {
-      Token CashCash;
-      CashCash.setKind(tok::cashcash);
-      UnconsumeToken(CashCash);
-    } else {
-      std::vector<std::pair<StringRef, StringRef>> formalArgs;
-      std::vector<Stmt*> defaultArgs;
-      ParseCaptureFormalArgs(formalArgs, defaultArgs,
-                             PairParser, StmtParser, (Stmt*)nullptr);
-
-      StmtResult Stmt = ParseStatementOrDeclaration(Stmts,
-                                                    Allowed,
-                                                    TrailingElseLoc);
-      Actions.Capture(Header.Name, Stmt.get(), formalArgs);
-
-      if (Header.RK == RK_None)
-        return Actions.ActOnNullStmt(Stmt.get()->getLocEnd());
-      else if (Header.RK == RK_Self)
-        return Actions.ActOnCaptured(Header.Name, defaultArgs);
-      else if (Header.RK == RK_Node)
-        return Header.Repl;
-      else
-        llvm_unreachable("Invalid replacement kind.");
-    }
-  }
-
-  return Parser::ParseStatementOrDeclaration(Stmts,
-                                             Allowed,
-                                             TrailingElseLoc);
-}
-*/
 
 bool
 CaptureParser::TryParseCapture() {
-  std::function<void *()> ParseStmt = [this] {
+  std::function<void *(QualType &)> ParseStmt = [this] (QualType &QT) {
     StmtVector stmts;
     StmtResult stmt = ParseStatementOrDeclaration(stmts, ACK_Any);
     return (void*)stmt.get();
   };
-  std::function<void *()> ParseExpr = [this] {
+  std::function<void *(QualType &)> ParseExpr = [this] (QualType &QT) {
     ExprResult expr = ParseExpression(MaybeTypeCast);
+    QT = expr.get()->getType();
     return (void*)expr.get();
   };
 
@@ -316,14 +220,14 @@ CaptureParser::TryParseCapture() {
     // Try to capture an expression.
     SourceLocation SLoc = ConsumeToken(); // eat the '$$'
 
-    StringRef Name;
-    CapType capType;
-    std::function<void *()> parser;
-    if (TryParseCaptureHeader(Name, CAPTY_EXPR)) {
-      capType = CAPTY_EXPR;
+    StringRef name;
+    Node::NodeType ndType;
+    std::function<void *(QualType &)> parser;
+    if (TryParseCapture(name, Node::ND_EXPR)) {
+      ndType = Node::ND_EXPR;
       parser = ParseExpr;
-    } else if (TryParseCaptureHeader(Name, CAPTY_STMT)) {
-      capType = CAPTY_STMT;
+    } else if (TryParseCapture(name, Node::ND_STMT)) {
+      ndType = Node::ND_STMT;
       parser = ParseStmt;
     } else {
       Token CashCash;
@@ -332,15 +236,15 @@ CaptureParser::TryParseCapture() {
       return false;
     }
 
-    std::vector<FormalArgument> formalArgs;
+    FormalNodesTy formalArgs;
     ParseCaptureFormalArgs(formalArgs);
 
-    CaptureSema *CapSema = (CaptureSema*)(&Actions);
     CapSema->PushCapEnv(formalArgs);
-    void *node = parser();
+    QualType QT;
+    Node N(parser(QT), SLoc, ndType, QT);
     CapSema->PopCapEnv();
 
-    CapSema->Capture(Name, SLoc, capType, node, formalArgs);
+    CapSema->Capture(name, N, formalArgs);
     return true;
   }
 
@@ -355,54 +259,17 @@ CaptureParser::ParseTopLevelDecl(DeclGroupPtrTy &Result) {
 
 ExprResult
 CaptureParser::ParseExpression(TypeCastState isTypeCast) {
-  CaptureSema *CapSema = (CaptureSema*)(&Actions);
-
   if (Tok.is(tok::cash)) {
     // Expand into a captured subtree.
     ConsumeToken(); // eat the '$'
-    return ParseExpandingCapture<Expr>(CAPTY_EXPR, Tok.getLocation());
+    return ExpandCaptured<Expr>(Node::ND_EXPR, Tok.getLocation());
   } else if (Tok.is(tok::cashcashcash)) {
     // Parse a placeholder expression.
     SourceLocation SLoc = ConsumeToken(); // eat the '$$$'
-    StringRef id = ParseCaptureIdentifier();
-    return (Expr*)CapSema->ActOnPlaceholder(id, SLoc, CAPTY_EXPR);
+    StringRef name = ParseCaptureIdentifier();
+    return (Expr*)CapSema->ActOnPlaceholder(name, SLoc, Node::ND_EXPR);
   } else {
     return Parser::ParseExpression(isTypeCast);
   }
 }
 
-StringRef
-CaptureParser::CaptureTypeString(CapType ct) {
-  switch(ct) {
-    case CAPTY_STMT: return StringRef("stmt");
-    case CAPTY_EXPR: return StringRef("expr");
-    case CAPTY_DECL: return StringRef("decl");
-    default:
-      llvm_unreachable("Invalid capture type.");
-  }
-  return StringRef();
-}
-
-CaptureParser::CapType
-CaptureParser::CaptureType(const StringRef &s) {
-   if (s.equals("stmt"))
-     return CAPTY_STMT;
-   else if (s.equals("expr"))
-     return CAPTY_EXPR;
-   else if (s.equals("decl"))
-     return CAPTY_DECL;
-   else
-    llvm_unreachable("String does not name a capture type.");
-}
-
-bool
-CaptureParser::isCaptureType(const StringRef &s) {
-   if (s.equals("stmt"))
-     return true;
-   else if (s.equals("expr"))
-     return true;
-   else if (s.equals("decl"))
-     return true;
-   else
-     return false;
-}
