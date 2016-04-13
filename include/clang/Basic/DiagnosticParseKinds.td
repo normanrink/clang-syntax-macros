@@ -982,4 +982,12 @@ def err_for_co_await_not_range_for : Error<
   "'co_await' modifier can only be applied to range-based for loop">;
 }
 
+// CaptureParser support.
+def err_expected_identifier : Error<
+  "unexpected token: expected identifier">;
+def err_expected_node_type : Error<
+  "unexpected identifier '%0': expected AST node type">;
+def err_number_of_actuals : Error<
+  "wrong number of arguments: '%0' expects %1 arguments, %2 (or more) given">;
+
 } // end of Parser diagnostics

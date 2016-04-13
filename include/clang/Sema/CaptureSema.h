@@ -16,7 +16,12 @@
 #define LLVM_CLANG_SEMA_CAPTURE_SEMA_H
 
 #include "clang/Sema/Sema.h"
+#include "clang/Parse/CaptureParser.h"
 #include "../lib/Sema/TreeInstantiator.h"
+
+#include <list>
+#include <map>
+#include <vector>
 
 namespace clang {
 
@@ -33,14 +38,47 @@ public:
 
   ~CaptureSema() {}
 
-  typedef std::pair<Stmt*, std::vector<std::pair<StringRef, StringRef>>> CapturedStmtPairTy;
-  typedef std::map<const std::string, CapturedStmtPairTy> CapturedStmtTy;
-  typedef std::pair<Expr*, std::vector<StringRef>> CapturedExprPairTy;
-  typedef std::map<const std::string, CapturedExprPairTy> CapturedExprTy;
+public:
+  struct FormalCaptureNode {
+    SourceLocation Loc;
+    // The AST node type:
+    CaptureParser::CapType NodeType;
+    // For 'expr' nodes, the type of the expression:
+    QualType QT;
+  };
+
+  typedef std::map<StringRef, FormalCaptureNode> CapSingleEnvTy;
+  typedef std::list<CapSingleEnvTy> CapEnvTy;
+
+  bool getCaptureQualType(QualType &Type, const StringRef &name);
+  bool getCaptureNodeType(CaptureParser::CapType &NodeType, const StringRef &name);
+  bool getCaptureNode(FormalCaptureNode &fcn, const StringRef &name);
+
+  void PushCapEnv(std::vector<CaptureParser::FormalArgument> &formals);
+  void PopCapEnv();
 
 private:
-  CapturedStmtTy CapturedStmts;
-  CapturedExprTy CapturedExprs;
+  CapEnvTy CapEnvironment;
+
+private:
+  struct CapturedNode {
+    SourceLocation Loc;
+    CaptureParser::CapType Type;
+    // YIKES: would be better without a 'void' pointer:
+    void *Node;
+    // formal arguments:
+    std::vector<CaptureParser::FormalArgument> Formals;
+  };
+
+  typedef std::map<StringRef, CapturedNode> CapturesTy;
+
+public:
+  void
+  getFormalArgTypes(std::vector<CaptureParser::CapType> &NodeTypes,
+                    const StringRef &N, SourceLocation Loc);
+
+private:
+  CapturesTy Captures;
 
   template<typename T>
   ActionResult<T*>
@@ -48,23 +86,15 @@ private:
                     std::vector<T*> &ActualArgs);
 
 public:
-  StmtResult ActOnCaptured(const StringRef &N,
-                           std::vector<Stmt*> &ActualArgs) override;
-  ExprResult ActOnCaptured(const StringRef &N,
-                           std::vector<Expr*> &ActualArgs) override;
+  void *
+  ActOnCaptured(const StringRef &N, CaptureParser::CapType expected,
+                std::vector<void*> &ActualArgs, SourceLocation Loc);
 
-  void Capture(StringRef N, Stmt* ToCapture,
-               std::vector<std::pair<StringRef, StringRef>> FormalArgs) override {
-    CapturedStmts[N.str()] = CapturedStmtPairTy(ToCapture, FormalArgs);
-  }
-  void Capture(StringRef N, Expr* ToCapture,
-               std::vector<StringRef> FormalArgs) override {
-    CapturedExprs[N.str()] = CapturedExprPairTy(ToCapture, FormalArgs);
-  }
-
-  const std::vector<std::pair<StringRef, StringRef>>
-  getStmtFormalArgs(StringRef N) override {
-    return CapturedStmts[N.str()].second;
+  void Capture(StringRef N, SourceLocation Loc,
+               CaptureParser::CapType Type, void* ToCapture,
+               std::vector<CaptureParser::FormalArgument> FormalArgs) {
+    CapturedNode cap { Loc, Type, ToCapture, FormalArgs };
+    Captures[N] = cap;
   }
 
   StmtResult CreateStmtPlaceholder(const StringRef &Name,
@@ -79,17 +109,9 @@ public:
     return new (Context) ExprPlaceholder(Name, QT, startLoc, endLoc);
   }
 
-  StmtResult ActOnStmtPlaceholder(const StringRef &N,
-                                  SourceLocation startLoc,
-                                  SourceLocation endLoc) override {
-    return CreateStmtPlaceholder(N, startLoc, endLoc);
-  }
-  ExprResult ActOnExprPlaceholder(const StringRef &N,
-                                  ParsedType PTy,
-                                  SourceLocation startLoc,
-                                  SourceLocation endLoc) override {
-    return CreateExprPlaceholder(N, GetTypeFromParser(PTy), startLoc, endLoc);
-  }
+  void *ActOnPlaceholder(const StringRef &N,
+                         SourceLocation Loc,
+                         CaptureParser::CapType NodeType);
 };
 
 } // end namespace clang

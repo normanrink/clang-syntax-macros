@@ -21,37 +21,44 @@ using namespace sema;
 
 class TreeInstantiator : public TreeTransform<TreeInstantiator> {
 public:
-  typedef std::map<StringRef, Stmt*> ActualStmtArgsTy;
-  typedef std::map<StringRef, Expr*> ActualExprArgsTy;
+  typedef std::map<StringRef, void*> ActualArgsTy;
 
 private:
-  ActualStmtArgsTy ActualArguments;
+  ActualArgsTy ActualArguments;
 
 public:
   TreeInstantiator(Sema &SemaRef) : TreeTransform<TreeInstantiator>(SemaRef) {}
 
   bool AlwaysRebuild() { return true; }
 
-  Stmt* Instantiate(Stmt *S, ActualStmtArgsTy Actuals) {
+  Stmt* Instantiate(Stmt *S, ActualArgsTy Actuals) {
     ActualArguments = Actuals;
     return TransformStmt(S).get();
   }
 
-  Expr* Instantiate(Expr *E, ActualExprArgsTy Actuals) {
-    ActualArguments.clear();
-    for (auto ArgsIt : Actuals)
-      ActualArguments[ArgsIt.first] = ArgsIt.second;
+  Expr* Instantiate(Expr *E, ActualArgsTy Actuals) {
+    ActualArguments = Actuals;
     return TransformExpr(E).get();
   }
 
   StmtResult
   TransformStmtPlaceholder(StmtPlaceholder *S) {
-    Stmt *arg = ActualArguments[S->getName()];
+    Stmt *arg = (Stmt*)ActualArguments[S->getName()];
+    // break infinite recursion:
+    if (StmtPlaceholder::classof(arg)) {
+       assert((arg != S) && "instantiating placeholder with itself");
+       return arg;
+    }
     return TransformStmt(arg);
   }
   ExprResult
   TransformExprPlaceholder(ExprPlaceholder *E) {
-    Expr *arg = cast<Expr>(ActualArguments[E->getName()]);
+    Expr *arg = (Expr*)ActualArguments[E->getName()];
+    // break infinite recursion:
+    if (ExprPlaceholder::classof(arg)) {
+       assert((arg != E) && "instantiating placeholder with itself");
+       return arg;
+    }
     return TransformExpr(arg);
    }
 

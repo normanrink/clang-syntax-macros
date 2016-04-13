@@ -22,15 +22,33 @@ namespace clang {
 
 class CaptureParser : public Parser {
 public:
-  enum ReplacementKind {
-    RK_None,
-    RK_Self,
-    RK_Node
+  /* 'ReplacementKind' has been removed. The semantics now are that no replacement
+   * is done for catured trees/nodes. If the programmer wants the tree/node in his
+   * program, (s)he will have to instantiate it.
+   */
+
+  enum CapType {
+    CAPTY_STMT,
+    CAPTY_EXPR,
+    CAPTY_DECL,
+    CAPTY_COUNT
+  };
+
+  static StringRef CaptureTypeString(CapType);
+  static CapType CaptureType(const StringRef &);
+  bool isCaptureType(const StringRef &);
+
+  struct FormalArgument {
+    SourceLocation Loc;
+    // The name of this formal:
+    StringRef Name;
+    // The AST node type:
+    CapType Type;
+    // For 'expr' nodes, the type of the expression:
+    TypeResult TR;
   };
 
  struct CaptureHeader {
-    ReplacementKind RK;
-    Stmt *Repl;
     StringRef Name;
   };
 
@@ -41,46 +59,36 @@ public:
   ParseStatementOrDeclaration(StmtVector &Stmts, AllowedContsructsKind Allowed,
                               SourceLocation *TrailingElseLoc = nullptr) override;
 
+
   ExprResult
   ParseExpression(TypeCastState isTypeCast = NotTypeCast) override;
 
+  bool ParseTopLevelDecl(DeclGroupPtrTy &Result) override;
+
 private:
-  template <typename parser>
   bool
-  TryParseCaptureHeader(CaptureHeader &CH, const StringRef &kind,
-                        parser ReplacementParser);
+  TryParseCaptureHeader(StringRef &name, CapType expected);
 
   StringRef ParseCaptureIdentifier();
 
-  TypeResult ParseNodeType();
+  TypeResult ParseExprType();
 
-  template<typename S, typename T>
-  void ParseCaptureFormalArgs(std::vector<S> &formals, std::vector<T> &defaults,
-                              std::function<S()> SParser,
-                              std::function<T()> TParser,
-                              T Dummy);
+  void ParseCaptureFormalArgument(FormalArgument &Result);
+  void ParseCaptureFormalArgs(std::vector<FormalArgument> &Formals);
+
+  void ParseCaptureActualArgs(std::vector<void*> &result, const StringRef &N);
+
+  bool TryParseCapture();
+
   template<typename T>
-  void ParseCaptureActualArgs(std::vector<T> &result, std::function<T()> TParser);
+  ActionResult<T*> ParseExpandingCapture(CaptureParser::CapType NodeType,
+                                         SourceLocation Loc);
 
-  template<typename T>
-  ActionResult<T*> ParseExpandingCapture(std::function<T*()> tParser);
-
+  /*
   StmtResult
   ParseExpandingStmtCapture(std::function<Stmt*()> StmtParser,
                             std::function<Expr*()> ExprParser);
-
-  const std::function<StringRef()> StringParser = [this] {
-    return ParseCaptureIdentifier();
-  };
-
-  const std::function<std::pair<StringRef, StringRef>()> PairParser = [this] {
-    const StringRef &typeID = ParseCaptureIdentifier();
-    assert((typeID.equals("stmt") || typeID.equals("expr"))
-           && "unexpected node type");
-
-    const StringRef &name = ParseCaptureIdentifier();
-    return std::pair<StringRef, StringRef>(typeID, name);
-  };
+                            */
 };
 }// end namespace clang
 
