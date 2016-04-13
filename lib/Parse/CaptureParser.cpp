@@ -22,6 +22,9 @@ using namespace clang;
 
 CaptureParser::CaptureParser(Preprocessor &pp, Sema &actions,
                                      bool skipFunctionBodies)
+  // YIKES: The casting from 'Sema*' to 'CaptureSema*' is hacky, but this way
+  // one does not need to change a whole lot of interfaces of classes,
+  // constructors, and functions all over 'clang'.
   : Parser(pp, actions, skipFunctionBodies), CapSema((CaptureSema*)&actions) {}
 
 bool
