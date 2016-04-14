@@ -39,47 +39,13 @@ public:
   ~CaptureSema() {}
 
 public:
-
-  typedef std::map<StringRef, FormalNode> CapFrameTy;
-  typedef std::list<CapFrameTy> CapEnvTy;
-
-  bool getFormalNode(FormalNode &res, const StringRef &name);
-
-  void PushCapEnv(FormalNodesTy &formals);
-  void PopCapEnv();
-
-private:
-  CapEnvTy CapEnvironment;
-
-private:
-  struct CapturedNode {
-    Node N;
-    FormalNodesTy FormalArgs;
-  };
-
-  typedef std::map<StringRef, CapturedNode> CapturesTy;
-
-public:
-  void getFormalArgTypes(std::vector<Node::NodeType> &result,
-                         const StringRef &name, SourceLocation loc);
-
-private:
-  CapturesTy Captures;
-
-  template<typename T>
-  ActionResult<T*>
-  ActOnCapturedTree(std::pair<T*, std::vector<StringRef>> tree,
-                    std::vector<T*> &ActualArgs);
-
-public:
   void *
   ActOnCaptured(const StringRef &N, Node::NodeType expected,
                 std::vector<Node> &actualArgs, SourceLocation loc);
 
-  void Capture(StringRef name, Node astNode,
-               FormalNodesTy &formals) {
-    CapturedNode cn = { astNode, formals };
-    Captures[name] = cn;
+  void Capture(const StringRef &name, const Node &astNode,
+               const FormalNodesTy &formals) {
+    getCurScope()->addASTCapturedTemplate(name, astNode, formals);
   }
 
   StmtResult CreateStmtPlaceholder(const StringRef &name,
@@ -88,15 +54,19 @@ public:
     return new (Context) StmtPlaceholder(name, startLoc, endLoc);
   }
   ExprResult CreateExprPlaceholder(const StringRef &name,
-                               QualType QT,
-                               SourceLocation startLoc,
-                               SourceLocation endLoc)  override  {
+                                   QualType QT,
+                                   SourceLocation startLoc,
+                                   SourceLocation endLoc)  override  {
     return new (Context) ExprPlaceholder(name, QT, startLoc, endLoc);
   }
 
   void *ActOnPlaceholder(const StringRef &name,
                          SourceLocation loc,
                          Node::NodeType ndType);
+
+  QualType GetTypeFromParser(ParsedType Ty) {
+     return Sema::GetTypeFromParser(Ty);
+  }
 };
 
 } // end namespace clang

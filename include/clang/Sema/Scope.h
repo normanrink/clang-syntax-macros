@@ -14,6 +14,7 @@
 #ifndef LLVM_CLANG_SEMA_SCOPE_H
 #define LLVM_CLANG_SEMA_SCOPE_H
 
+#include "clang/Parse/CaptureNode.h"
 #include "clang/Basic/Diagnostic.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -87,7 +88,7 @@ public:
     /// \brief This is a scope that corresponds to the Objective-C
     /// \@catch statement.
     AtCatchScope = 0x400,
-    
+
     /// \brief This scope corresponds to an Objective-C method body.
     /// It always has FnScope and DeclScope set as well.
     ObjCMethodScope = 0x800,
@@ -123,6 +124,8 @@ public:
 
     /// We are currently in the filter expression of an SEH except block.
     SEHFilterScope = 0x200000,
+
+    ASTCaptureScope = 0x400000,
   };
 private:
   /// The parent scope for this scope.  This is null for the translation-unit
@@ -195,6 +198,22 @@ private:
   /// A lattice consisting of undefined, a single NRVO candidate variable in
   /// this scope, or over-defined. The bit is true when over-defined.
   llvm::PointerIntPair<VarDecl *, 1, bool> NRVO;
+
+
+  // The 'frame' consisting of formal arguments which are visible while
+  // a captured subtree of the AST is parsed/generated.
+  // This is only available in an 'ASTCaptureScope':
+  FormalNodesTy ASTCapturedFormals;
+
+  // A captured template consits of a AST node and the arguments which
+  // must be given at its instantiation:
+  struct ASTCapturedTemplate {
+    Node N;
+    FormalNodesTy FormalArgs;
+  };
+  // The captured templates visisble in this scope, valid in all kinds
+  // of scopes:
+  std::map<StringRef, ASTCapturedTemplate> ASTCaptures;
 
 public:
   Scope(Scope *Parent, unsigned ScopeFlags, DiagnosticsEngine &Diag)
@@ -333,7 +352,7 @@ public:
     }
     return false;
   }
-  
+
   /// isInObjcMethodScope - Return true if this scope is, or is contained in, an
   /// Objective-C method body.  Note that this method is not constant time.
   bool isInObjcMethodScope() const {
@@ -356,7 +375,7 @@ public:
     return false;
   }
 
-  
+
   /// isTemplateParamScope - Return true if this scope is a C++
   /// template parameter scope.
   bool isTemplateParamScope() const {
@@ -477,6 +496,24 @@ public:
 
   void dumpImpl(raw_ostream &OS) const;
   void dump() const;
+
+public:
+  bool isASTCaptureScope() {
+    return (Flags & ASTCaptureScope);
+  }
+
+  void addASTCaptureFormals(const FormalNodesTy &formals);
+  bool getASTCapturedFormal(FormalNode &res, const StringRef &name);
+
+  void addASTCapturedTemplate(const StringRef &name, const Node &N,
+                              const FormalNodesTy &formals);
+  bool getASTCapturedTemplate(ASTCapturedTemplate &res, const StringRef &name);
+  bool getASTCapturedNode(Node &res, const StringRef &name);
+  bool getASTCapturedFormalArgs(FormalNodesTy &res, const StringRef &name);
+  bool getASTCapturedFormalArgTypes(std::vector<Node::NodeType> &result,
+                                    const StringRef &name);
+  bool getASTCapturedFormalQualTypes(std::vector<QualType> &result,
+                                     const StringRef &name);
 };
 
 }  // end namespace clang

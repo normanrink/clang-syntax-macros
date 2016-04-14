@@ -89,6 +89,10 @@ void Scope::Init(Scope *parent, unsigned flags) {
   Entity = nullptr;
   ErrorTrap.reset();
   NRVO.setPointerAndInt(nullptr, 0);
+
+  // 'Init' is used by the Parser for scope caching. Hence we need to clear these:
+  ASTCapturedFormals.clear();
+  ASTCaptures.clear();
 }
 
 bool Scope::containedInPrototypeScope() const {
@@ -221,4 +225,92 @@ void Scope::dumpImpl(raw_ostream &OS) const {
     OS << "NRVO not allowed\n";
   else if (NRVO.getPointer())
     OS << "NRVO candidate : (clang::VarDecl*)" << NRVO.getPointer() << '\n';
+}
+
+void Scope::addASTCaptureFormals(const FormalNodesTy &formals) {
+  if (!isASTCaptureScope())
+    assert(0 && "formals can only be added to an AST capture scope");
+  if (!ASTCapturedFormals.empty())
+    assert(0 && "formals for AST capture already present in this scope");
+
+  ASTCapturedFormals = formals;
+}
+
+bool Scope::getASTCapturedFormal(FormalNode &res, const StringRef &name) {
+   Scope *S = this;
+   while (S) {
+     // NOTE: Captures formal arguments (for AST nodes) only exist
+     // in an 'ASTCaptureScope'.
+     if (S->isASTCaptureScope()) {
+       for (auto formal: S->ASTCapturedFormals) {
+         if (formal.Name.equals(name)) {
+            res = formal;
+            return true;
+         }
+       }
+     }
+     S = S->getParent();
+   }
+   return false;
+}
+
+void Scope::addASTCapturedTemplate(const StringRef &name, const Node &N,
+                                   const FormalNodesTy &formals) {
+  ASTCapturedTemplate templ = { N, formals };
+  // NOTE: Silently overwrite existing AST captures with the same name.
+  // TODO: Issue at least a warning.
+  ASTCaptures[name] = templ;
+}
+
+bool Scope::getASTCapturedTemplate(ASTCapturedTemplate &res, const StringRef &name) {
+   Scope *S = this;
+   while (S) {
+     // NOTE: Captured AST node templates can exists in any scope.
+     if (S->ASTCaptures.count(name)) {
+       res = S->ASTCaptures.at(name);
+       return true;
+     }
+     S = S->getParent();
+   }
+   return false;
+}
+
+bool Scope::getASTCapturedNode(Node &res, const StringRef &name) {
+  ASTCapturedTemplate templ;
+   bool exists = getASTCapturedTemplate(templ, name);
+   res = templ.N;
+   return exists;
+}
+
+bool Scope::getASTCapturedFormalArgs(FormalNodesTy &res, const StringRef &name) {
+  ASTCapturedTemplate templ;
+   bool exists = getASTCapturedTemplate(templ, name);
+   res = templ.FormalArgs;
+   return exists;
+}
+
+bool Scope::getASTCapturedFormalArgTypes(std::vector<Node::NodeType> &result,
+                                         const StringRef &name) {
+  ASTCapturedTemplate templ;
+   bool exists = getASTCapturedTemplate(templ, name);
+   if (!exists)
+     return false;
+
+   for (auto formal: templ.FormalArgs)
+     result.push_back(formal.NdType);
+
+   return true;
+}
+
+bool Scope::getASTCapturedFormalQualTypes(std::vector<QualType> &result,
+                                          const StringRef &name) {
+  ASTCapturedTemplate templ;
+   bool exists = getASTCapturedTemplate(templ, name);
+   if (!exists)
+     return false;
+
+   for (auto formal: templ.FormalArgs)
+     result.push_back(formal.QT);
+
+   return true;
 }

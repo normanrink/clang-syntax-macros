@@ -15,7 +15,6 @@
 #define LLVM_CLANG_PARSE_CAPTURE_NODE_H
 
 #include "clang/AST/Type.h"
-#include "clang/Parse/Parser.h"
 
 #include <map>
 #include <string>
@@ -59,6 +58,7 @@ public:
   StringRef getNodeTypeAsString() const;
 
   QualType getExprType() const { return ExprType; }
+  QualType getCanonicalExprType() const { return ExprType.getCanonicalType(); }
   void setExprType(QualType &QT) { ExprType = QT; }
 
   static bool isNodeType(const StringRef &s);
@@ -74,14 +74,16 @@ struct FormalNode {
   StringRef Name;
 
   Node::NodeType NdType;
-  // For expressions, type as is it is parsed:
-  TypeResult TR;
+  // For expressions only:
+  QualType QT;
 
   FormalNode(const StringRef &name, SourceLocation loc,
              Node::NodeType ndType = Node::ND_INVALID)
     : Loc(loc), Name(name), NdType(ndType) {}
 
   FormalNode() {}
+
+  QualType getCanonicalType() const { return QT.getCanonicalType(); }
 };
 
 typedef std::vector<FormalNode> FormalNodesTy;

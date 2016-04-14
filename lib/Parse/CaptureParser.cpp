@@ -89,7 +89,8 @@ CaptureParser::ParseCaptureFormalArgument(FormalNode &Result) {
     case Node::ND_STMT:
       break;
     case Node::ND_EXPR:
-      Result.TR = ParseExprType();
+      // HACK:
+      Result.QT = CapSema->GetTypeFromParser(ParseExprType().get());
       break;
     case Node::ND_DECL:
       assert(0 && "'decl' not implemented yet");
@@ -128,7 +129,7 @@ CaptureParser::ParseCaptureActualArgs(std::vector<Node> &result,
   std::vector<Node::NodeType> formalNdTypes;
   // NOTE: Here we need context-sensitive information. We must ask the
   // semantic analysis for the AST node types of the formal arguments:
-  CapSema->getFormalArgTypes(formalNdTypes, name, Tok.getLocation());
+  getCurScope()->getASTCapturedFormalArgTypes(formalNdTypes, name);
 
   unsigned index = 0;
   if (Tok.is(tok::l_paren)) { // We have a parameter list.
@@ -242,12 +243,22 @@ CaptureParser::TryParseCapture() {
     FormalNodesTy formalArgs;
     ParseCaptureFormalArgs(formalArgs);
 
-    CapSema->PushCapEnv(formalArgs);
-    QualType QT;
-    Node N(parser(QT), SLoc, ndType, QT);
-    CapSema->PopCapEnv();
+    {
+      QualType QT;
 
-    CapSema->Capture(name, N, formalArgs);
+      EnterScope(Scope::ASTCaptureScope);
+      getCurScope()->addASTCaptureFormals(formalArgs);
+
+      Node N(parser(QT), SLoc, ndType, QT);
+
+      ExitScope();
+
+      // NOTE: The call to 'Capture' must happen after we have exited
+      // the scope used for parsing the AST capture. This ensures that
+      // the parsed capture is visible in the current scope.
+      CapSema->Capture(name, N, formalArgs);
+    }
+
     return true;
   }
 

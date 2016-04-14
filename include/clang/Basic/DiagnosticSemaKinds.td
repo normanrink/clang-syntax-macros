@@ -8276,6 +8276,8 @@ def err_multiple_formal : Error <
   "formal argument '%0' multiply defined">;
 def err_capture_undefined : Error <
   "capture '%0' not defined">;
+def err_placeholder_undefined : Error <
+  "placeholder '%0' not defined">;
 def err_wrong_node_type : Error <
   "wrong AST node type: '%0' is a '%1', expected '%2'">;
 
