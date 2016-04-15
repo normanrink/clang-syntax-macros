@@ -39,6 +39,7 @@ CaptureSema::ActOnCaptured(const StringRef &name,
   for (auto f: formals) {
     Node actual = *actualsIt;
     Node::BaseNode *actualASTNode = actual.getASTNode();
+    assert(actualASTNode && "AST node broken");
 
     if (isa<StmtPlaceholder>(actualASTNode)
         || isa<ExprPlaceholder>(actualASTNode)) {
