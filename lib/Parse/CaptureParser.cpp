@@ -112,7 +112,7 @@ CaptureParser::ParseCaptureFormalArgs(FormalNodesTy &Formals) {
 
       // Formal arguments are separated by '$':
       if (Tok.is(tok::cash))
-        ConsumeToken(); // eat the $,'
+        ConsumeToken(); // eat the '$'
     }
 
     BDT.consumeClose(); // eat the ')'
@@ -133,8 +133,6 @@ CaptureParser::ParseCaptureActualArgs(std::vector<Node> &result,
     BDT.consumeOpen(); // eat the '('
 
     while (!Tok.is(tok::r_paren)) {
-      SourceLocation loc = Tok.getLocation();
-
       if (formalNdTypes.size() <= index)
         break;
 
@@ -147,29 +145,11 @@ CaptureParser::ParseCaptureActualArgs(std::vector<Node> &result,
       if (Node::isExpr(ndType)) {
         Expr *expr = ParseExpression(MaybeTypeCast).get();
         Node N(expr, expr->getExprLoc(), Node::getNodeType(expr), expr->getType());
-        // NOTE: It is not the cleanest solution to do this type checking in the
-        // parser, but this is the price we pay for relying on LLVM's/clang's RTTI
-        // (which includes the isa<> cast).
-        if (!N.isa(ndType)) {
-          Diag(loc, diag::err_wrong_node_type) << "actual argument"
-            << Node::getAsString(ndType)
-            << N.getNodeTypeAsString();
-          return;
-        }
         result.push_back(N);
       } else if (Node::isStmt(ndType)) {
         StmtVector Stmts;
         Stmt *stmt = ParseStatementOrDeclaration(Stmts, ACK_Any).get();
         Node N(stmt, stmt->getLocStart(), Node::getNodeType(stmt));
-        // NOTE: It is not the cleanest solution to do this type checking in the
-        // parser, but this is the price we pay for relying on LLVM's/clang's RTTI
-        // (which includes the isa<> cast).
-        if (!N.isa(ndType)) {
-          Diag(loc, diag::err_wrong_node_type) << "actual argument"
-            << Node::getAsString(ndType)
-            << N.getNodeTypeAsString();
-          return;
-        }
         result.push_back(N);
       } else {
         llvm_unreachable("we should not get here");
