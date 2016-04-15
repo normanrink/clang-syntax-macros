@@ -43,7 +43,7 @@ public:
   bool ParseTopLevelDecl(DeclGroupPtrTy &Result) override;
 
 private:
-  bool TryParseCapture(StringRef &name, Node::NodeType expected);
+  bool TryParseCapture(StringRef &name, Node::NodeType &ndType);
 
   StringRef ParseCaptureIdentifier();
 
@@ -56,8 +56,7 @@ private:
 
   bool TryParseCapture();
 
-  template<typename T>
-  ActionResult<T*> ExpandCaptured(Node::NodeType ndType, SourceLocation Loc);
+  Node::BaseNode *ExpandCaptured(StringRef &name, SourceLocation Loc);
 };
 }// end namespace clang
 

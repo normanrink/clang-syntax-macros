@@ -24,19 +24,32 @@ namespace clang {
 class Node {
 public:
   enum NodeType {
-    ND_STMT = 0,
-    ND_EXPR,
-    ND_DECL,
-    ND_INVALID,
-    ND_COUNT
+    ND_NoNode = 0,
+  // NOTE: This includes expressions since they are derived from 'Stmt'.
+  // However, the classes 'Stmt' and 'Expr' themselves do not seem to be included.
+    ND_Expr,
+    ND_Stmt,
+#define ABSTRACT_STMT(STMT)
+#define STMT(Node, Parent) \
+    ND_##Node,
+#define STMT_RANGE(Base, First, Last) \
+    ND_first##Base##Constant=ND_##First, ND_last##Base##Constant=ND_##Last,
+#define LAST_STMT_RANGE(Base, First, Last) \
+    ND_first##Base##Constant=ND_##First, ND_last##Base##Constant=ND_##Last
+#include "clang/AST/StmtNodes.inc"
   };
 
   static const std::map<const std::string, const NodeType> StringsToTypes;
   static const std::map<const NodeType, const std::string> TypesToStrings;
 
+  // For now we support statements and expressions. Since the common base
+  // class is 'Stmt', we use this is the type of all captured AST nodes.
+  // In the future, we should also support 'Decl', in which case it will be
+  // more complicated to find a common base class.
+  typedef Stmt BaseNode;
 private:
   // Pointer to the root node of the (sub-)AST:
-  void *ASTNode;
+  BaseNode *ASTNode;
 
   NodeType NdType;
 
@@ -46,13 +59,13 @@ private:
   SourceLocation Loc;
 
 public:
-  Node(void *node, SourceLocation loc, NodeType ndType = ND_INVALID,
+  Node(BaseNode *node, SourceLocation loc, NodeType ndType = ND_NoNode,
        QualType exprType = QualType())
     : ASTNode(node), NdType(ndType), ExprType(exprType), Loc(loc) {}
 
   Node() {}
 
-  void *getASTNode() const { return ASTNode; }
+  BaseNode *getASTNode() const { return ASTNode; }
 
   NodeType getNodeType() const;
   StringRef getNodeTypeAsString() const;
@@ -64,6 +77,14 @@ public:
   static bool isNodeType(const StringRef &s);
   static NodeType getAsNodeType(const StringRef &s);
   static StringRef getAsString(NodeType ndType);
+
+  bool isa(NodeType ndType);
+  bool isStmt();
+  bool isExpr();
+
+  static bool isStmt(NodeType ndType);
+  static bool isExpr(NodeType ndType);
+  static NodeType getNodeType(BaseNode *astNode);
 
   SourceLocation getLocation() const { return Loc; }
 };
@@ -78,7 +99,7 @@ struct FormalNode {
   QualType QT;
 
   FormalNode(const StringRef &name, SourceLocation loc,
-             Node::NodeType ndType = Node::ND_INVALID)
+             Node::NodeType ndType = Node::ND_NoNode)
     : Loc(loc), Name(name), NdType(ndType) {}
 
   FormalNode() {}

@@ -28,7 +28,7 @@ CaptureParser::CaptureParser(Preprocessor &pp, Sema &actions,
   : Parser(pp, actions, skipFunctionBodies), CapSema((CaptureSema*)&actions) {}
 
 bool
-CaptureParser::TryParseCapture(StringRef &name, Node::NodeType expected) {
+CaptureParser::TryParseCapture(StringRef &name, Node::NodeType &ndType) {
   assert(Tok.is(tok::l_square));
 
   Token Next = NextToken();
@@ -38,7 +38,8 @@ CaptureParser::TryParseCapture(StringRef &name, Node::NodeType expected) {
   }
 
   const StringRef &ndTypeName = Next.getIdentifierInfo()->getName();
-  if (!ndTypeName.equals(Node::getAsString(expected)))
+  ndType = Node::getAsNodeType(ndTypeName);
+  if (ndType == Node::ND_NoNode)
     return false; // Exit without consuming any tokens.
 
   BalancedDelimiterTracker BDT(*this, tok::l_square);
@@ -80,24 +81,19 @@ CaptureParser::ParseCaptureFormalArgument(FormalNode &Result) {
   StringRef ndTypeName = ParseCaptureIdentifier();
   if (!Node::isNodeType(ndTypeName)) {
     Diag(Loc, diag::err_expected_node_type) << ndTypeName;
-    // TODO: What?
+    // Assume the formal argument is a 'Stmt':
+    Result.NdType = Node::ND_Stmt;
+  } else {
+    Result.NdType = Node::getAsNodeType(ndTypeName);
   }
 
   Result.Loc = Loc;
   Result.NdType = Node::getAsNodeType(ndTypeName);
-  switch(Result.NdType) {
-    case Node::ND_STMT:
-      break;
-    case Node::ND_EXPR:
-      // HACK:
+  assert((Node::isStmt(Result.NdType) || Node::isExpr(Result.NdType))
+         && "unexpected AST node type");
+
+  if (Node::isExpr(Result.NdType)) {
       Result.QT = CapSema->GetTypeFromParser(ParseExprType().get());
-      break;
-    case Node::ND_DECL:
-      assert(0 && "'decl' not implemented yet");
-      break;
-    default:
-      llvm_unreachable("Invalid capture type.");
-      break;
   }
 
   Result.Name = ParseCaptureIdentifier();
@@ -137,26 +133,46 @@ CaptureParser::ParseCaptureActualArgs(std::vector<Node> &result,
     BDT.consumeOpen(); // eat the '('
 
     while (!Tok.is(tok::r_paren)) {
+      SourceLocation loc = Tok.getLocation();
+
       if (formalNdTypes.size() <= index)
         break;
 
-      switch (formalNdTypes[index]) {
-        case Node::ND_STMT: {
-          StmtVector Stmts;
-          Stmt *stmt = ParseStatementOrDeclaration(Stmts, ACK_Any).get();
-          Node N(stmt, stmt->getLocStart(), Node::ND_STMT);
-          result.push_back(N);
-          break;
+      Node::NodeType ndType = formalNdTypes[index];
+      assert((Node::isStmt(ndType) || Node::isExpr(ndType))
+             && "unexpected AST node type");
+
+      // NOTE: The order of the 'if' and 'else if' conditions is important since
+      // every 'Expr' is also a 'Stmt'.
+      if (Node::isExpr(ndType)) {
+        Expr *expr = ParseExpression(MaybeTypeCast).get();
+        Node N(expr, expr->getExprLoc(), Node::getNodeType(expr), expr->getType());
+        // NOTE: It is not the cleanest solution to do this type checking in the
+        // parser, but this is the price we pay for relying on LLVM's/clang's RTTI
+        // (which includes the isa<> cast).
+        if (!N.isa(ndType)) {
+          Diag(loc, diag::err_wrong_node_type) << "actual argument"
+            << Node::getAsString(ndType)
+            << N.getNodeTypeAsString();
+          return;
         }
-        case Node::ND_EXPR: {
-          Expr *expr = ParseExpression(MaybeTypeCast).get();
-          Node N(expr, expr->getExprLoc(), Node::ND_EXPR, expr->getType());
-          result.push_back(N);
-          break;
+        result.push_back(N);
+      } else if (Node::isStmt(ndType)) {
+        StmtVector Stmts;
+        Stmt *stmt = ParseStatementOrDeclaration(Stmts, ACK_Any).get();
+        Node N(stmt, stmt->getLocStart(), Node::getNodeType(stmt));
+        // NOTE: It is not the cleanest solution to do this type checking in the
+        // parser, but this is the price we pay for relying on LLVM's/clang's RTTI
+        // (which includes the isa<> cast).
+        if (!N.isa(ndType)) {
+          Diag(loc, diag::err_wrong_node_type) << "actual argument"
+            << Node::getAsString(ndType)
+            << N.getNodeTypeAsString();
+          return;
         }
-        default:
-          assert(0 && "not yet implemented");
-          break;
+        result.push_back(N);
+      } else {
+        llvm_unreachable("we should not get here");
       }
       ++index;
 
@@ -174,16 +190,13 @@ CaptureParser::ParseCaptureActualArgs(std::vector<Node> &result,
 }
 
 
-template<typename T>
-ActionResult<T*>
-CaptureParser::ExpandCaptured(Node::NodeType ndType,
-                              SourceLocation loc) {
+Node::BaseNode*
+CaptureParser::ExpandCaptured(StringRef &name, SourceLocation loc) {
   std::vector<Node> actualArgs;
 
-  StringRef name = ParseCaptureIdentifier();
+  name = ParseCaptureIdentifier();
   ParseCaptureActualArgs(actualArgs, name);
-  T *Res = (T*)CapSema->ActOnCaptured(name, ndType, actualArgs, loc);
-  return ActionResult<T*>(Res);
+  return CapSema->ActOnCaptured(name, actualArgs, loc);
 }
 
 
@@ -196,12 +209,33 @@ CaptureParser::ParseStatementOrDeclaration(StmtVector &Stmts,
   if (Tok.is(tok::cash)) {
     // Expand into a captured subtree.
     ConsumeToken(); // eat the '$'
-    return ExpandCaptured<Stmt>(Node::ND_STMT, Tok.getLocation());
+
+    StringRef name;
+    Stmt *Res = dyn_cast<Stmt>(ExpandCaptured(name, Tok.getLocation()));
+    if (!Res) {
+      Node::NodeType ndType = Node::getNodeType(Res);
+      Diag(Tok.getLocation(), diag::err_wrong_node_type) << name.str() + "(captured)"
+        << Node::getAsString(ndType)
+        << Node::getAsString(Node::ND_Stmt);
+      return StmtResult();
+    }
+
+    return StmtResult(Res);
   } else if (Tok.is(tok::cashcashcash)) {
     // Parse a placeholder statement.
     SourceLocation SLoc = ConsumeToken(); // eat the '$$$'
     StringRef name = ParseCaptureIdentifier();
-    return (Expr*)CapSema->ActOnPlaceholder(name, SLoc, Node::ND_STMT);
+
+    Stmt *Res = dyn_cast<Stmt>(CapSema->ActOnPlaceholder(name, SLoc));
+    if (!Res) {
+      Node::NodeType ndType = Node::getNodeType(Res);
+      Diag(SLoc, diag::err_wrong_node_type) << name.str() + "(placeholder)"
+        << Node::getAsString(ndType)
+        << Node::getAsString(Node::ND_Stmt);
+      return StmtResult();
+    }
+
+    return StmtResult(Res);
   } else {
     return Parser::ParseStatementOrDeclaration(Stmts, Allowed, TrailingElseLoc);
   }
@@ -209,15 +243,16 @@ CaptureParser::ParseStatementOrDeclaration(StmtVector &Stmts,
 
 bool
 CaptureParser::TryParseCapture() {
-  std::function<void *(QualType &)> ParseStmt = [this] (QualType &QT) {
+  std::function<Node::BaseNode *(QualType &)> ParseStmt = [this] (QualType &QT) {
     StmtVector stmts;
     StmtResult stmt = ParseStatementOrDeclaration(stmts, ACK_Any);
-    return (void*)stmt.get();
+    return stmt.get();
   };
-  std::function<void *(QualType &)> ParseExpr = [this] (QualType &QT) {
+  std::function<Node::BaseNode *(QualType &)> ParseExpr = [this] (QualType &QT) {
+    TryParseCapture();
     ExprResult expr = ParseExpression(MaybeTypeCast);
     QT = expr.get()->getType();
-    return (void*)expr.get();
+    return expr.get();
   };
 
   if (Tok.is(tok::cashcash)) {
@@ -226,18 +261,23 @@ CaptureParser::TryParseCapture() {
 
     StringRef name;
     Node::NodeType ndType;
-    std::function<void *(QualType &)> parser;
-    if (TryParseCapture(name, Node::ND_EXPR)) {
-      ndType = Node::ND_EXPR;
-      parser = ParseExpr;
-    } else if (TryParseCapture(name, Node::ND_STMT)) {
-      ndType = Node::ND_STMT;
-      parser = ParseStmt;
-    } else {
+    if (!TryParseCapture(name, ndType)) {
       Token CashCash;
       CashCash.setKind(tok::cashcash);
       UnconsumeToken(CashCash);
       return false;
+    }
+
+    assert((Node::isStmt(ndType) || Node::isExpr(ndType))
+           && "unexpected AST node type");
+
+    std::function<Node::BaseNode *(QualType &)> parser;
+    if (Node::isExpr(ndType)) {
+      parser = ParseExpr;
+    } else if (Node::isStmt(ndType)) {
+      parser = ParseStmt;
+    } else {
+       llvm_unreachable("should not be here");
     }
 
     FormalNodesTy formalArgs;
@@ -276,12 +316,33 @@ CaptureParser::ParseExpression(TypeCastState isTypeCast) {
   if (Tok.is(tok::cash)) {
     // Expand into a captured subtree.
     ConsumeToken(); // eat the '$'
-    return ExpandCaptured<Expr>(Node::ND_EXPR, Tok.getLocation());
+
+    StringRef name;
+    Expr *Res = dyn_cast<Expr>(ExpandCaptured(name, Tok.getLocation()));
+    if (!Res) {
+      Node::NodeType ndType = Node::getNodeType(Res);
+      Diag(Tok.getLocation(), diag::err_wrong_node_type) << name.str() + "(captured)"
+        << Node::getAsString(ndType)
+        << Node::getAsString(Node::ND_Expr);
+      return ExprResult();
+    }
+
+    return ExprResult(Res);
   } else if (Tok.is(tok::cashcashcash)) {
     // Parse a placeholder expression.
     SourceLocation SLoc = ConsumeToken(); // eat the '$$$'
     StringRef name = ParseCaptureIdentifier();
-    return (Expr*)CapSema->ActOnPlaceholder(name, SLoc, Node::ND_EXPR);
+
+    Expr *Res = dyn_cast<Expr>(CapSema->ActOnPlaceholder(name, SLoc));
+    if (!Res) {
+      Node::NodeType ndType = Node::getNodeType(Res);
+      Diag(SLoc, diag::err_wrong_node_type) << name.str() + "(placeholder)"
+        << Node::getAsString(ndType)
+        << Node::getAsString(Node::ND_Expr);
+      return ExprResult();
+    }
+
+    return ExprResult(Res);
   } else {
     return Parser::ParseExpression(isTypeCast);
   }

@@ -19,8 +19,8 @@ using namespace clang;
 using namespace sema;
 
 
-void *
-CaptureSema::ActOnCaptured(const StringRef &name, Node::NodeType expected,
+Node::BaseNode *
+CaptureSema::ActOnCaptured(const StringRef &name,
                            std::vector<Node> &actualArgs, SourceLocation loc) {
   Node N;
   FormalNodesTy formals;
@@ -34,49 +34,65 @@ CaptureSema::ActOnCaptured(const StringRef &name, Node::NodeType expected,
   exists = getCurScope()->getASTCapturedFormalArgs(formals, name);
   assert(exists && "scope is broken");
 
-  if (N.getNodeType() != expected) {
-    Diag(loc, diag::err_wrong_node_type) << name
-      << N.getNodeTypeAsString()
-      << Node::getAsString(expected);
-    // plough on regardless of the AST node type mismatch
-    // TODO: Is is sensible to plough on?
-  }
-
-  std::map<StringRef, void*> argsMap;
+  std::map<StringRef, Node::BaseNode*> argsMap;
   auto actualsIt = actualArgs.begin();
   for (auto f: formals) {
-    // This has already been checked by the parser, namely when the parser selected
-    // whether the capture is to be parsed as a 'stmt' or 'expr':
-    assert(f.NdType == actualsIt->getNodeType());
-    if (f.NdType == Node::ND_EXPR) {
+    Node actual = *actualsIt;
+    Node::BaseNode *actualASTNode = actual.getASTNode();
+
+    if (isa<StmtPlaceholder>(actualASTNode)
+        || isa<ExprPlaceholder>(actualASTNode)) {
+      // If the formal argument is a placeholder, we cannot use the 'actual.isa()' call
+      // in the comparision of AST ndoe types. Instead, we must get the node type with
+      // which the placeholder was defined in the header of an AST capture.
+      StringRef name;
+      if (StmtPlaceholder *sph = dyn_cast<StmtPlaceholder>(actualASTNode))
+        name = sph->getName();
+      else if (ExprPlaceholder *eph = dyn_cast<ExprPlaceholder>(actualASTNode))
+        name = eph->getName();
+      else
+        assert(0 && "should not be here");
+
+      FormalNode FormalForActual;
+
+      bool exists = getCurScope()->getASTCapturedFormal(FormalForActual, name);
+      if (!exists) {
+        Diag(loc, diag::err_capture_undefined) << name;
+        return nullptr;
+      }
+
+      if (FormalForActual.NdType != f.NdType) {
+        Diag(actual.getLocation(), diag::err_wrong_node_type)
+          << name
+          << Node::getAsString(FormalForActual.NdType)
+          << Node::getAsString(f.NdType);
+        return nullptr;
+
+      }
+    } else if (!actual.isa(f.NdType)) {
+      Diag(actual.getLocation(), diag::err_wrong_node_type) << f.Name
+        << actual.getNodeTypeAsString()
+        << Node::getAsString(f.NdType);
+      return nullptr;
+    }
+
+    if (Node::isExpr(f.NdType)) {
       QualType formalCanType = f.getCanonicalType();
-      QualType actualCanType = actualsIt->getCanonicalExprType();
+      QualType actualCanType = actual.getCanonicalExprType();
       if (formalCanType.getTypePtr() != actualCanType.getTypePtr()) {
         // TODO: Emit a proper error message.
-         assert(0 && "type mismatch between formal and actual argument");
+        assert(0 && "type mismatch between formal and actual argument");
       }
     }
+
     argsMap[f.Name] = (actualsIt++)->getASTNode();
   }
 
-  switch (expected) {
-    case Node::ND_STMT:
-      return (void*)TI.Instantiate((Stmt*)N.getASTNode(), argsMap);
-    case Node::ND_EXPR:
-      return (void*)TI.Instantiate((Expr*)N.getASTNode(), argsMap);
-    case Node::ND_DECL:
-      assert(0 && "not yet implemented");
-    default:
-      llvm_unreachable("Invalid capture type.");
-  }
-  return nullptr;
+  return TI.Instantiate(N.getASTNode(), argsMap);
 }
 
-void *
-CaptureSema::ActOnPlaceholder(const StringRef &name,
-                              SourceLocation loc,
-                              Node::NodeType ndType) {
-
+Node::BaseNode *
+CaptureSema::ActOnPlaceholder(const StringRef &name, SourceLocation loc) {
   FormalNode formal;
   bool exists = getCurScope()->getASTCapturedFormal(formal, name);
 
@@ -85,21 +101,15 @@ CaptureSema::ActOnPlaceholder(const StringRef &name,
     return nullptr;
   }
 
-  if (formal.NdType != ndType) {
-    Diag(loc, diag::err_wrong_node_type) << name
-      << Node::getAsString(formal.NdType)
-      << Node::getAsString(ndType);
-    // plough on regardless of the AST node type mismatch
-    // TODO: Is is sensible to plough on?
-  }
+  assert((Node::isStmt(formal.NdType) || Node::isExpr(formal.NdType))
+         && "unexpected AST node type");
 
-  switch(ndType) {
-    case Node::ND_STMT:
-      return CreateStmtPlaceholder(name, loc, loc).get();
-    case Node::ND_EXPR:
-      return CreateExprPlaceholder(name, formal.QT, loc, loc).get();
-    default:
-      assert(0 && "not yet implemented");
+  if (Node::isExpr(formal.NdType)) {
+    return CreateExprPlaceholder(name, formal.QT, loc, loc).get();
+  } else if (Node::isStmt(formal.NdType)) {
+    return CreateStmtPlaceholder(name, loc, loc).get();
+  } else {
+    llvm_unreachable("we should not get here");
   }
 }
 

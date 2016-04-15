@@ -14,6 +14,7 @@
 #ifndef LLVM_CLANG_LIB_SEMA_TREEINSTANTIATOR_H
 #define LLVM_CLANG_LIB_SEMA_TREEINSTANTIATOR_H
 
+#include "clang/Parse/CaptureNode.h"
 #include "TreeTransform.h"
 
 namespace clang {
@@ -21,7 +22,7 @@ using namespace sema;
 
 class TreeInstantiator : public TreeTransform<TreeInstantiator> {
 public:
-  typedef std::map<StringRef, void*> ActualArgsTy;
+  typedef std::map<StringRef, Node::BaseNode*> ActualArgsTy;
 
 private:
   ActualArgsTy ActualArguments;
@@ -31,35 +32,39 @@ public:
 
   bool AlwaysRebuild() { return true; }
 
-  Stmt* Instantiate(Stmt *S, ActualArgsTy Actuals) {
+  Node::BaseNode* Instantiate(Node::BaseNode *S, ActualArgsTy Actuals) {
     ActualArguments = Actuals;
     return TransformStmt(S).get();
   }
 
-  Expr* Instantiate(Expr *E, ActualArgsTy Actuals) {
+  /*Expr* Instantiate(Expr *E, ActualArgsTy Actuals) {
     ActualArguments = Actuals;
     return TransformExpr(E).get();
-  }
+  }*/
 
   StmtResult
   TransformStmtPlaceholder(StmtPlaceholder *S) {
-    Stmt *arg = (Stmt*)ActualArguments[S->getName()];
-    // break infinite recursion:
-    if (StmtPlaceholder::classof(arg)) {
-       assert((arg != S) && "instantiating placeholder with itself");
-       return arg;
+    if (ActualArguments.count(S->getName())) {
+      Stmt *arg = (Stmt*)ActualArguments.at(S->getName());
+      return arg;
     }
-    return TransformStmt(arg);
+    // If the placeholder is not defined by one of the arguments,
+    // it must be a formal argument to an enclosing AST capture.
+    // Hence we do not resolve the placeholder here but leave this to
+    // the 'TreeInstantiator' which instantiates the enclosing capture.
+    return S;
   }
   ExprResult
   TransformExprPlaceholder(ExprPlaceholder *E) {
-    Expr *arg = (Expr*)ActualArguments[E->getName()];
-    // break infinite recursion:
-    if (ExprPlaceholder::classof(arg)) {
-       assert((arg != E) && "instantiating placeholder with itself");
-       return arg;
+    if (ActualArguments.count(E->getName())) {
+      Expr *arg = (Expr*)ActualArguments.at(E->getName());
+      return arg;
     }
-    return TransformExpr(arg);
+    // If the placeholder is not defined by one of the arguments,
+    // it must be a formal argument to an enclosing AST capture.
+    // Hence we do not resolve the placeholder here but leave this to
+    // the 'TreeInstantiator' which instantiates the enclosing capture.
+    return E;
    }
 
   Decl *TransformDecl(SourceLocation Loc, Decl *D) {

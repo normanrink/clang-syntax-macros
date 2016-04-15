@@ -39,9 +39,8 @@ public:
   ~CaptureSema() {}
 
 public:
-  void *
-  ActOnCaptured(const StringRef &N, Node::NodeType expected,
-                std::vector<Node> &actualArgs, SourceLocation loc);
+  Node::BaseNode *
+  ActOnCaptured(const StringRef &N, std::vector<Node> &actualArgs, SourceLocation loc);
 
   void Capture(const StringRef &name, const Node &astNode,
                const FormalNodesTy &formals) {
@@ -60,12 +59,10 @@ public:
     return new (Context) ExprPlaceholder(name, QT, startLoc, endLoc);
   }
 
-  void *ActOnPlaceholder(const StringRef &name,
-                         SourceLocation loc,
-                         Node::NodeType ndType);
+  Node::BaseNode *ActOnPlaceholder(const StringRef &name, SourceLocation loc);
 
   QualType GetTypeFromParser(ParsedType Ty) {
-     return Sema::GetTypeFromParser(Ty);
+    return Sema::GetTypeFromParser(Ty);
   }
 };
 
