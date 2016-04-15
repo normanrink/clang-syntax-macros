@@ -1,13 +1,13 @@
 
 int y = 42;
 
-$$[stmt] sub(expr[int] VAL)
+$$[Stmt] sub(Expr[int] VAL)
   {
-    // Define another 'expr':
-    $$[expr] addinl(expr[int] VAL $ expr[int] INC) ($$$VAL)+($$$INC)
+    // Define another 'Expr':
+    $$[Expr] addinl(Expr[int] VAL $ Expr[int] INC) ($$$VAL)+($$$INC)
       ;
-    // And another 'expr':
-    $$[expr] add3(expr[int] VAL) ($$$VAL)+3
+    // And another 'Expr':
+    $$[Expr] add3(Expr[int] VAL) ($$$VAL)+3
       ;
     // Now for the actual 'stmt':
     y = ($addinl($$$VAL $ y))-($add3($$$VAL));

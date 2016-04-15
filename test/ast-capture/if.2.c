@@ -1,7 +1,11 @@
 
+typedef int bool;
+
 int main(int a) {
-  $$[stmt] IF(expr cond, stmt body) if($$$[int]cond) $$$body
-  $$[stmt] IFELSE(expr cond, stmt then, stmt els) if ($$$[int]cond) $$$then else $$$els
+  $$[Stmt] IF(Expr[bool] cond $ Stmt body) if($$$cond) $$$body
+    ;
+  $$[Stmt] IFELSE(Expr[bool] cond $ Stmt then $ Stmt els) if ($$$cond) $$$then else $$$els
+    ;
 
   $IFELSE ((a > 1) $
     $IF((a<3) $ ++a;) $

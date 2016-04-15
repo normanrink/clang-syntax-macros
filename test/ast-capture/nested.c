@@ -16,5 +16,5 @@ int main() {
   int y = 2;
 
   int res = ($fun(x $ y));
-  return res;
+  return res; // return '9'
 }

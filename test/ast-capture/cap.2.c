@@ -2,15 +2,17 @@
 #include <stdio.h>
 
 int main() {
-  $$[stmt, ;] ydecl (expr init) unsigned y = 42 + ($$$[unsigned]init);
+  $$[Stmt] ydecl (Expr[unsigned] init) unsigned y = 42 + ($$$init);
+    ;
 
-  $$[stmt] yinc (expr inc) y += ($$$[unsigned]inc);
+  $$[Stmt] yinc (CStyleCastExpr[unsigned] inc) y += ($$$inc);
+    ;
 
-  $ydecl((unsigned)3)
-  printf("y=%d\n", y);
+  $ydecl(3u) // y = 42 + 3
+  printf("y=%d\n", y); // '45'
 
-  $yinc(3)
-  printf("y=%d\n", y);
+  $yinc((unsigned)3)
+  printf("y=%d\n", y); // '48'
 
   return 0;
 }

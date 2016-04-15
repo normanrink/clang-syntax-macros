@@ -2,7 +2,7 @@
 int main() {
   int x = 3;
 
-  $$[stmt] ret(expr[int] VAL) $$[expr] add2(expr[int] VAL) ($$$VAL)+2   return $add2($$$VAL);
+  $$[Stmt] ret(Expr[int] VAL) $$[Expr] add2(Expr[int] VAL) ($$$VAL)+2   return $add2($$$VAL);
 
-  $ret(x*2)
+  $ret(x*2) // return '8'
 }

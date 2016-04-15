@@ -12,7 +12,9 @@ int d[N];
 
 int main() {
 
-  int x = (  $$[expr, 0] subs (A, B, i) ($$$[int*]A)[ ($$$[int*]B) [($$$[int]i)] ]  );
+  int x = 0;
+  $$[Expr] subs (Expr[int*] A $ Expr[int*] B $ Expr[int] i) ($$$A)[ ($$$B) [($$$i)] ]
+    ;
 
   for (int i = 0; i < N; i++) {
     a[i] = i;
@@ -28,18 +30,19 @@ int main() {
 
   int o1 = 1, o2 = 2;
 
-  int y = (  $$[expr, 0] add (A, off1, off2)
-      ( ($$$[int*]A) + (2*($$$[int]off1)*
-        (1 + 3*(($$$[int]off2)*(($$$[int]off1)
-                                + (($$$[int]off1) ) * (($$$[int]off2)
-                                                          +(4*(($$$[int]off1)+($$$[int]off2)))
+  int y = 0;
+  $$[Expr] add (Expr[int*] A $ Expr[int] off1 $ Expr[int] off2)
+      ( ($$$A) + (2*($$$off1)*
+        (1 + 3*(($$$off2)*(($$$off1)
+                                + (($$$off1) ) * (($$$off2)
+                                                          +(4*(($$$off1)+($$$off2)))
                                                           )
                                 )
                 )
          )
                         )
        )
-          );
+          ;
 
   int k = N-1;
   int res = ($subs(ap $ $add(bp $ o1 $ o2) $ k));

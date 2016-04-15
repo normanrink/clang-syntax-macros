@@ -13,11 +13,9 @@ $$[Stmt] fun(Expr[int] Val $ CompoundAssignOperator[int] inc)
 
 int main() {
   int x = 3;
-  //$$[ReturnStmt] ret(BinaryOperator[int] VAL) return $$$VAL;
-  //  ;
+  $$[ReturnStmt] ret(BinaryOperator[int] VAL) return $$$VAL;
+    ;
 
   $fun(x $ x+=1)
-  //$ret(x+1+x)
-
-    return 0;
+  $ret(x+1+x) // return '85'
 }
