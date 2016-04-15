@@ -208,33 +208,15 @@ CaptureParser::ParseStatementOrDeclaration(StmtVector &Stmts,
 
   if (Tok.is(tok::cash)) {
     // Expand into a captured subtree.
-    ConsumeToken(); // eat the '$'
-
+    SourceLocation SLoc = ConsumeToken(); // eat the '$'
     StringRef name;
-    Stmt *Res = dyn_cast<Stmt>(ExpandCaptured(name, Tok.getLocation()));
-    if (!Res) {
-      Node::NodeType ndType = Node::getNodeType(Res);
-      Diag(Tok.getLocation(), diag::err_wrong_node_type) << name.str() + "(captured)"
-        << Node::getAsString(ndType)
-        << Node::getAsString(Node::ND_Stmt);
-      return StmtResult();
-    }
-
+    Stmt *Res = dyn_cast_or_null<Stmt>(ExpandCaptured(name, SLoc));
     return StmtResult(Res);
   } else if (Tok.is(tok::cashcashcash)) {
     // Parse a placeholder statement.
     SourceLocation SLoc = ConsumeToken(); // eat the '$$$'
     StringRef name = ParseCaptureIdentifier();
-
-    Stmt *Res = dyn_cast<Stmt>(CapSema->ActOnPlaceholder(name, SLoc));
-    if (!Res) {
-      Node::NodeType ndType = Node::getNodeType(Res);
-      Diag(SLoc, diag::err_wrong_node_type) << name.str() + "(placeholder)"
-        << Node::getAsString(ndType)
-        << Node::getAsString(Node::ND_Stmt);
-      return StmtResult();
-    }
-
+    Stmt *Res = dyn_cast_or_null<Stmt>(CapSema->ActOnPlaceholder(name, SLoc));
     return StmtResult(Res);
   } else {
     return Parser::ParseStatementOrDeclaration(Stmts, Allowed, TrailingElseLoc);
@@ -256,7 +238,7 @@ CaptureParser::TryParseCapture() {
   };
 
   if (Tok.is(tok::cashcash)) {
-    // Try to capture an expression.
+    // Try to capture an AST subtree.
     SourceLocation SLoc = ConsumeToken(); // eat the '$$'
 
     StringRef name;
@@ -315,33 +297,15 @@ ExprResult
 CaptureParser::ParseExpression(TypeCastState isTypeCast) {
   if (Tok.is(tok::cash)) {
     // Expand into a captured subtree.
-    ConsumeToken(); // eat the '$'
-
+    SourceLocation SLoc = ConsumeToken(); // eat the '$'
     StringRef name;
-    Expr *Res = dyn_cast<Expr>(ExpandCaptured(name, Tok.getLocation()));
-    if (!Res) {
-      Node::NodeType ndType = Node::getNodeType(Res);
-      Diag(Tok.getLocation(), diag::err_wrong_node_type) << name.str() + "(captured)"
-        << Node::getAsString(ndType)
-        << Node::getAsString(Node::ND_Expr);
-      return ExprResult();
-    }
-
+    Expr *Res = dyn_cast_or_null<Expr>(ExpandCaptured(name, SLoc));
     return ExprResult(Res);
   } else if (Tok.is(tok::cashcashcash)) {
     // Parse a placeholder expression.
     SourceLocation SLoc = ConsumeToken(); // eat the '$$$'
     StringRef name = ParseCaptureIdentifier();
-
-    Expr *Res = dyn_cast<Expr>(CapSema->ActOnPlaceholder(name, SLoc));
-    if (!Res) {
-      Node::NodeType ndType = Node::getNodeType(Res);
-      Diag(SLoc, diag::err_wrong_node_type) << name.str() + "(placeholder)"
-        << Node::getAsString(ndType)
-        << Node::getAsString(Node::ND_Expr);
-      return ExprResult();
-    }
-
+    Expr *Res = dyn_cast_or_null<Expr>(CapSema->ActOnPlaceholder(name, SLoc));
     return ExprResult(Res);
   } else {
     return Parser::ParseExpression(isTypeCast);
