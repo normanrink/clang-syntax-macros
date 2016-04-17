@@ -200,12 +200,18 @@ CaptureParser::ParseStatementOrDeclaration(StmtVector &Stmts,
     SourceLocation SLoc = ConsumeToken(); // eat the '$'
     StringRef name;
     Stmt *Res = dyn_cast_or_null<Stmt>(ExpandCaptured(name, SLoc));
+    if (Res == nullptr)
+      return StmtError();
+
     return StmtResult(Res);
   } else if (Tok.is(tok::cashcashcash)) {
     // Parse a placeholder statement.
     SourceLocation SLoc = ConsumeToken(); // eat the '$$$'
     StringRef name = ParseCaptureIdentifier();
     Stmt *Res = dyn_cast_or_null<Stmt>(CapSema->ActOnPlaceholder(name, SLoc));
+    if (Res == nullptr)
+      return StmtError();
+
     return StmtResult(Res);
   } else {
     return Parser::ParseStatementOrDeclaration(Stmts, Allowed, TrailingElseLoc);
@@ -289,12 +295,17 @@ CaptureParser::ParseExpression(TypeCastState isTypeCast) {
     SourceLocation SLoc = ConsumeToken(); // eat the '$'
     StringRef name;
     Expr *Res = dyn_cast_or_null<Expr>(ExpandCaptured(name, SLoc));
+    if (Res == nullptr)
+      return ExprError();
+
     return ExprResult(Res);
   } else if (Tok.is(tok::cashcashcash)) {
     // Parse a placeholder expression.
     SourceLocation SLoc = ConsumeToken(); // eat the '$$$'
     StringRef name = ParseCaptureIdentifier();
     Expr *Res = dyn_cast_or_null<Expr>(CapSema->ActOnPlaceholder(name, SLoc));
+    if (Res == nullptr)
+      return ExprError();
     return ExprResult(Res);
   } else {
     return Parser::ParseExpression(isTypeCast);
