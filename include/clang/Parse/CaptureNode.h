@@ -25,11 +25,7 @@ class Node {
 public:
   enum NodeType {
     ND_NoNode = 0,
-  // NOTE: This includes expressions since they are derived from 'Stmt'.
-  // However, the classes 'Stmt' and 'Expr' themselves do not seem to be included.
-    ND_Expr,
     ND_Stmt,
-#define ABSTRACT_STMT(STMT)
 #define STMT(Node, Parent) \
     ND_##Node,
 #define STMT_RANGE(Base, First, Last) \
@@ -82,6 +78,7 @@ public:
   bool isStmt();
   bool isExpr();
 
+  static bool isDerived(NodeType candidate, NodeType base);
   static bool isStmt(NodeType ndType);
   static bool isExpr(NodeType ndType);
   static NodeType getNodeType(BaseNode *astNode);

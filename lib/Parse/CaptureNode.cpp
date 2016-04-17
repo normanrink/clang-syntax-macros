@@ -27,8 +27,6 @@ using namespace clang;
 
 const std::map<const std::string, const Node::NodeType> Node::StringsToTypes = {
     {"Stmt", ND_Stmt},
-    {"Expr", ND_Expr},
-#define ABSTRACT_STMT(STMT)
 #define STMT(Node, Parent) \
     {#Node, ND_##Node},
 #include "clang/AST/StmtNodes.inc"
@@ -36,8 +34,6 @@ const std::map<const std::string, const Node::NodeType> Node::StringsToTypes = {
 
 const std::map<const Node::NodeType, const std::string> Node::TypesToStrings = {
     {ND_Stmt, "Stmt"},
-    {ND_Expr, "Expr"},
-#define ABSTRACT_STMT(STMT)
 #define STMT(Node, Parent) \
     {ND_##Node, #Node},
 #include "clang/AST/StmtNodes.inc"
@@ -73,9 +69,22 @@ bool Node::isa(Node::NodeType ndType) {
   switch (ndType) {
 #define STMT(Node, Parent) \
   case ND_##Node: return llvm::template isa<Node>(ASTNode);
-#define ABSTRACT_STMT(STMT)
   STMT(Stmt, Null)
-  STMT(Expr, Stmt)
+#include "clang/AST/StmtNodes.inc"
+  default:
+    llvm_unreachable("invalid node type");
+  }
+}
+
+bool Node::isDerived(Node::NodeType candidate, Node::NodeType base) {
+  if (candidate == base)
+    return true;
+  else if (candidate == ND_Stmt)
+    return false;
+
+  switch (candidate) {
+#define STMT(Node, Parent) \
+  case ND_##Node: return isDerived(ND_##Parent, base);
 #include "clang/AST/StmtNodes.inc"
   default:
     llvm_unreachable("invalid node type");
@@ -107,9 +116,7 @@ Node::NodeType Node::getNodeType(BaseNode *astNode) {
 #define STMT(Node, Parent) \
   if (llvm::template isa<Node>(astNode)) \
     result = ND_##Node;
-#define ABSTRACT_STMT(STMT)
   STMT(Stmt, Null)
-  STMT(Expr, Stmt)
 #include "clang/AST/StmtNodes.inc"
 
   return result;

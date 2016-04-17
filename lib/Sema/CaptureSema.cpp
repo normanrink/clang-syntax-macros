@@ -62,7 +62,7 @@ CaptureSema::ActOnCaptured(const StringRef &name,
         return nullptr;
       }
 
-      if (FormalForActual.NdType != f.NdType) {
+      if (!Node::isDerived(FormalForActual.NdType, f.NdType)) {
         Diag(actual.getLocation(), diag::err_wrong_node_type)
           << name
           << Node::getAsString(FormalForActual.NdType)
