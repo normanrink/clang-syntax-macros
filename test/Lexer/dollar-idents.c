@@ -2,6 +2,7 @@
 // RUN: %clang_cc1 -dump-tokens -x assembler-with-cpp %s 2>&1 | FileCheck %s --check-prefix=CHECK-ASM
 // PR3808
 
-// CHECK: identifier '$A'
+// CHECK: cash '$'
+// CHECK: identifier 'A'
 // CHECK-ASM: identifier 'A'
 $A

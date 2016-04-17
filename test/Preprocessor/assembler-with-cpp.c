@@ -5,7 +5,7 @@
 #endif
 
 
-// Invalid token pasting is ok. 
+// Invalid token pasting is ok.
 #define A X ## .
 1: A
 // CHECK-Identifiers-False: 1: X .
@@ -47,14 +47,14 @@
 // rdar://6804322
 #define FOO(name)  name ## $foo
 6: FOO(blarg)
-// CHECK-Identifiers-False: 6: blarg $foo
+// check-Identifiers-False: 6: blarg $foo
 
 // RUN: %clang_cc1 -x assembler-with-cpp -fdollars-in-identifiers -E %s -o - | FileCheck -check-prefix=CHECK-Identifiers-True -strict-whitespace %s
 #define FOO(name)  name ## $foo
 7: FOO(blarg)
-// CHECK-Identifiers-True: 7: blarg$foo
+// check-Identifiers-True: 7: blarg$foo
 
-// 
+//
 #define T6() T6 #nostring
 #define T7(x) T7 #x
 8: T6()
