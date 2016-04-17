@@ -8275,10 +8275,10 @@ def warn_objc_redundant_qualified_class_type : Warning<
 def err_multiple_formal : Error <
   "formal argument '%0' multiply defined">;
 def err_capture_undefined : Error <
-  "capture '%0' not defined">;
+  "capture '%0' not defined">, DefaultFatal;
 def err_placeholder_undefined : Error <
-  "placeholder '%0' not defined">;
+  "placeholder '%0' not defined">, DefaultFatal;
 def err_wrong_node_type : Error <
-  "wrong AST node type: '%0' is a '%1', expected '%2'">;
+  "wrong AST node type: '%0' is a '%1', expected '%2'">, DefaultFatal;
 
 } // end of sema component.
