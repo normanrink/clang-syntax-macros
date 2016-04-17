@@ -14,6 +14,7 @@
 
 #include "clang/Parse/CaptureNode.h"
 #include "clang/Sema/CaptureSema.h"
+#include "clang/Sema/Initialization.h"
 
 using namespace clang;
 using namespace sema;
@@ -78,15 +79,23 @@ CaptureSema::ActOnCaptured(const StringRef &name,
     }
 
     if (Node::isExpr(f.NdType)) {
-      QualType formalCanType = f.getCanonicalType();
-      QualType actualCanType = actual.getCanonicalExprType();
-      if (formalCanType.getTypePtr() != actualCanType.getTypePtr()) {
-        // TODO: Emit a proper error message.
-        assert(0 && "type mismatch between formal and actual argument");
-      }
+      // This is inspired by how 'Sema' handles actual arguments
+      // to function calls (cf. 'Sema::BuildResolvedCallExpr').
+      InitializedEntity Entity =
+        InitializedEntity::InitializeParameter(Context, f.QT,
+                                               /* consumed */ false);
+      Expr *arg = dyn_cast<Expr>(actualASTNode);
+      assert(arg && "dyn_cast should not fail at this point");
+      ExprResult argResult =
+        PerformCopyInitialization(Entity, actual.getLocation(), arg);
+      if (argResult.isInvalid())
+        return nullptr;
+
+      actualASTNode = argResult.get();
     }
 
-    argsMap[f.Name] = (actualsIt++)->getASTNode();
+    argsMap[f.Name] = actualASTNode;
+    ++actualsIt;
   }
 
   return TI.Instantiate(N.getASTNode(), argsMap);
