@@ -144,11 +144,19 @@ CaptureParser::ParseCaptureActualArgs(std::vector<Node> &result,
       // every 'Expr' is also a 'Stmt'.
       if (Node::isExpr(ndType)) {
         Expr *expr = ParseExpression(MaybeTypeCast).get();
+        // NOTE: This is not the prettiest solution:
+        if (expr == nullptr)
+          goto next_actual;
+
         Node N(expr, expr->getExprLoc(), Node::getNodeType(expr), expr->getType());
         result.push_back(N);
       } else if (Node::isStmt(ndType)) {
         StmtVector Stmts;
         Stmt *stmt = ParseStatementOrDeclaration(Stmts, ACK_Any).get();
+        // NOTE: This is not the prettiest solution:
+        if (stmt == nullptr)
+          goto next_actual;
+
         Node N(stmt, stmt->getLocStart(), Node::getNodeType(stmt));
         result.push_back(N);
       } else {
@@ -156,6 +164,7 @@ CaptureParser::ParseCaptureActualArgs(std::vector<Node> &result,
       }
       ++index;
 
+next_actual:
       if (Tok.is(tok::cash)) // use '$' to separate actual arguments
         ConsumeToken(); // eat the '$'
     }
