@@ -1,5 +1,10 @@
 
+// RUN: %clang %s -o %t1
+// RUN: %t1 | FileCheck --check-prefix=OUTPUT %s
+ 
 // AST-capture macros "subs" and "add".
+
+#include <stdio.h>
 
 static float y = 17.0;
 
@@ -1429,5 +1434,7 @@ int main() {
     res = ($subs(cp $ $add(dp $ o1 $ o2) $ k));
     res = ($subs(cp $ $add(dp $ o1 $ o2) $ k));
   }
-  return res;
+  printf("%d\n", res);
+// OUTPUT: 81
+  return 0;
 }
