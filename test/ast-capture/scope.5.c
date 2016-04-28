@@ -1,3 +1,6 @@
+ 
+// RUN: %clang -o %t1 %s
+// RUN: %t1 || echo $? | grep 14
 
 int y = 42;
 
@@ -15,7 +18,7 @@ $$[Stmt] sub(Expr[int] VAL)
   ;
 
 int main() {
-  int y = 1;
+  int y = 17;
 
   $$[Stmt] sub(Expr[int] VAL)
     {
@@ -30,6 +33,6 @@ int main() {
     }
     ;
 
-  $sub(3); // 'local' y = (3+y) - (3+3) = (3+1) - 6 = -2
-  return y; // return '-2'
+  $sub(3); // 'local' y = (3+y) - (3+3) = (3+17) - 6 = 14
+  return y; // return 'local' y, i.e. '14'
 }
