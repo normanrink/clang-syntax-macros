@@ -267,6 +267,8 @@ CaptureParser::TryParseCapture() {
       getCurScope()->addASTCaptureFormals(formalArgs);
 
       Node N(parser(QT), SLoc, ndType, QT);
+      if (!N.getASTNode())
+        Diag(SLoc, diag::err_failed_parse);
 
       ExitScope();
 

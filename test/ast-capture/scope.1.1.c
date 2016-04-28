@@ -1,17 +1,14 @@
 
-// FIXME: This test passes for the wrong reasons, executing '%t1' returns '0'.
-// This is because capturing 'ret' leads to a (silent) 'StmtError' in the "Sema"
-// phase, which in turn is caused  by the absence of a function context around
-// the 'return' statement.
-
-// RUN: %clang -o %t1 %s
-// RUN: %t1 || echo $? | grep 43
+// RUN: %clang_cc1 -verify %s
 
 int y = 42;
 
-$$[Stmt] ret(DeclRefExpr[int] VAL)
+$$[Stmt] ret(DeclRefExpr[int] VAL) // expected-error {{failed to parse AST node}}
   return y + ($$$VAL);
   ;
+// Parsing the 'return' statement fails since the "Sema" phase detects the absence 
+// of a function context around the the 'return' statement. Consequently, "Sema"
+// returns a 'StmtError()', which the "CaptureParser" notices as a 'nullptr'.
 
 int main() {
   int y = 1;

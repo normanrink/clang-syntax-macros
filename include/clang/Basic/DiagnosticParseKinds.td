@@ -989,5 +989,7 @@ def err_expected_node_type : Error<
   "unexpected identifier '%0': expected AST node type">;
 def err_number_of_actuals : Error<
   "wrong number of arguments: '%0' expects %1 arguments, %2 (or more) given">;
+def err_failed_parse : Error<
+  "failed to parse AST node">;
 
 } // end of Parser diagnostics
