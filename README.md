@@ -16,7 +16,6 @@ and [Clang](http://clang.llvm.org/get_started.html) documentation.
  
 Since you are reading this, you are on the `syntax-macros` branch in the
 present Clang repository, obtained from [`https://github.com/normanrink/clang-syntax-macros`](https://github.com/normanrink/clang-syntax-macros).
-
 The `syntax-macros` branch is derived from Clang 3.8.  Hence, support for syntax
 macros in Clang will build against LLVM 3.8.  A version of LLVM against which
 building has been tested can be obtained from [`https://github.com/normanrink/llvm-syntax-macros`](https://github.com/normanrink/llvm-syntax-macros)
@@ -40,7 +39,7 @@ Thus, to build Clang with syntax macros, do the following:
       git clone git@github.com:normanrink/clang-syntax-macros.git clang
       ```
  
-  4.  Check out the 'syntax-macros' branch (should be checked out by default):
+  4.  Check out the `syntax-macros` branch (should be checked out by default):
       ```
       cd clang
       git checkout syntax-macros
@@ -59,7 +58,7 @@ This will also execute the syntax macros tests in
 
 (The directory is named `ast-capture` for historic reasons: ast-capture was a
 working title used instead of syntax macros.)  Alternatively, you can use `llvm-lit`
-to exercise only the tests in the ast-capture directory:
+to exercise only the tests in the `ast-capture` directory:
 
     <BUILD-DIR>/bin/llvm-lit <SOURCE-DIR>/llvm/tools/clang/test/ast-capture
 
