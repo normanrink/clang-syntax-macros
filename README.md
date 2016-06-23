@@ -24,43 +24,44 @@ building has been tested can be obtained from [`https://github.com/normanrink/ll
 Thus, to build Clang with syntax macros, do the following:
 
   1.  Clone a suitable version of LLVM, e.g.
-  
-      `git clone git@github.com:normanrink/llvm-syntax-macros.git llvm`
+      ```
+      git clone git@github.com:normanrink/llvm-syntax-macros.git llvm
+      ```
 
   2.  Check out the `syntax-macros` branch (should be checked out by default):
-  
-      `cd llvm`
-  
-      `git checkout syntax-macros`
+      ```
+      cd llvm
+      git checkout syntax-macros
+      ```
 
   3.  Clone this Clang repository:
-  
-      `cd tools`
-  
-      `git clone git@github.com:normanrink/clang-syntax-macros.git clang`
+      ```
+      cd tools
+      git clone git@github.com:normanrink/clang-syntax-macros.git clang
+      ```
  
   4.  Check out the 'syntax-macros' branch (should be checked out by default):
-  
-      `cd clang`
-  
-      `git checkout syntax-macros`
+      ```
+      cd clang
+      git checkout syntax-macros
+      ```
 
   5.  Now follow the conventional build instructions for LLVM and Clang, which
       can be found on [`http://llvm.org/docs/GettingStarted.html`](http://llvm.org/docs/GettingStarted.html).
 
 After successfully building Clang, you can run the `lit` regression tests with
 
-    `make check-clang`
+    make check-clang
 
 This will also execute the syntax macros tests in
 
-    `tools/clang/test/ast-capture`
+    tools/clang/test/ast-capture
 
 (The directory is named `ast-capture` for historic reasons: ast-capture was a
 working title used instead of syntax macros.)  Alternatively, you can use `llvm-lit`
 to exercise only the tests in the ast-capture directory:
 
-    `<BUILD-DIR>/bin/llvm-lit <SOURCE-DIR>/llvm/tools/clang/test/ast-capture`
+    <BUILD-DIR>/bin/llvm-lit <SOURCE-DIR>/llvm/tools/clang/test/ast-capture
 
 The tests in `tools/clang/test/ast-capture` are also a good place to take a first
 glimpse at syntax macros.
