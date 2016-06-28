@@ -158,7 +158,7 @@ In implementing syntax macros, Clang's parser is extended by deriving from the c
      bool ParseTopLevelDecl(...) override;
      ...
    };
-```
+   ```
 The methods listed above have been declared as `virtual` in the class `Parser`.
 The implementations of these methods in `CaptureParser` handle syntax macros.
 From the previous section we know that handling of syntax macros is triggered by one of the tokens `$`, `$$`, `$$$`.
@@ -171,12 +171,11 @@ Syntax macros introduce two new places where ASTs must be built:
 2. when a macro is invoked.
 
 Functionality for building ASTs in these places is also added by deriving from the `Sema` class:
-
-```
-class CaptureSema : public Sema {
-      ...
-      };
-```
+   ```
+   class CaptureSema : public Sema {
+     ...
+   };
+   ```
 However, this time no existing methods in `Sema` have to be declared as `virtual`.
 This is because `CaptureSema` is only used by `CaptureParser`, and whenever `CaptureParser` calls a method present in both `CaptureSema` and `Sema`, it can be decided statically which class's method implementation is to be called.
 Thus no dynamic polymorphism, as facilitated by `virtual` methods, is required in this context.
