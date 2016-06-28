@@ -121,8 +121,8 @@ As a second example, let's define a macro `add` with a body of type `Expr`:
 This macro takes two formal parameters: `var` and `num`.
 Note that the token `$` is also used to separate formal parameters.
 The formal parameters are declared with types `Expr` and `IntegerLiteral` respectively.
-When formal parameters are expressions, their types must be annotated with C/C++ expressions types in brackets, e.g. `[int]`.
-These annotations are used for type-checking actual paramters on macro invokation.
+When formal parameters are expressions, their types must be annotated with C/C++ expression types in brackets, e.g. `[int]`.
+These annotations are used for type-checking actual parameters on macro invokation.
 
 With the `add` macro the function `simple` can be written like this:
 
