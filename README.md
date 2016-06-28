@@ -103,7 +103,6 @@ The macro `init` could have also been defined like this:
 
 After the above macro definition has been successfully parsed, the name `init` is bound to the AST which result from parsing the macro body.
 The macro `init` can then be invoked, e.g., in the following simple function:
-
    ```
    int simple() {
      $init
@@ -111,7 +110,6 @@ The macro `init` can then be invoked, e.g., in the following simple function:
      return x;
    }
    ```
-
 The function `simple` will of course return `42`.
 
 As a second example, let's define a macro `add` with a body of type `Expr`:
@@ -125,7 +123,6 @@ When formal parameters are expressions, their types must be annotated with C/C++
 These annotations are used for type-checking actual parameters on macro invokation.
 
 With the `add` macro the function `simple` can be written like this:
-
    ```
    int simple() {
      $init
@@ -133,7 +130,6 @@ With the `add` macro the function `simple` can be written like this:
      return x;
    }
    ```
-
 Note again the two meanings of the `$` token.
 The `$` in `$add` indicates that the macro `add` should be invoked.
 The actual parameters given to the macro invokation are `x` and the literal `41`.
@@ -145,6 +141,45 @@ Note that this can be achieved by adding a `;` after the macro definition, which
 
 The complete source code for the examples in this section can be found in ` test/ast-capture/simple.c`.
 A more comprehensive syntax macro system has been defined and implemented by D. Weise and R. Crew of Microsoft Research  [\[1\]](http://dl.acm.org/citation.cfm?id=155105) (also accessible at [\[2\]](https://www.cs.rice.edu/~taha/teaching/05S/511/papers/weise93programmable.pdf)).
+
+
+## Extending Clang
+
+The definitions and invokations of syntax macros appear directly in C/C++ source code.
+Syntax macros are therefore an extension of the C/C++ language.
+Implementing a C/C++ language extension necessitates extending the parser.
+
+In implementing syntax macros, Clang's parser is extended by deriving from the class `Parser`:
+   ```
+   class CaptureParser : public Parser {
+   public:
+     StmtResult ParseStatementOrDeclaration(...) override;
+     ExprResult ParseExpression(...) override;
+     bool ParseTopLevelDecl(...) override;
+     ...
+   };
+```
+The methods listed above have been declared as `virtual` in the class `Parser`.
+The implementations of these methods in `CaptureParser` handle syntax macros.
+From the previous section we know that handling of syntax macros is triggered by one of the tokens `$`, `$$`, `$$$`.
+When the methods `CaptureParser::Parse*` are done handling macro-specific parts of the source code, they defer to the corresponding methods in `Parser` for parsing of "normal" C/C++ code.
+
+In Clang the building of ASTs is carried out by the `Sema` class.
+Syntax macros introduce two new places where ASTs must be built:
+
+1. the body of a syntax macro,
+2. when a macro is invoked.
+
+Functionality for building ASTs in these places is also added by deriving from the `Sema` class:
+
+```
+class CaptureSema : public Sema {
+      ...
+      };
+```
+However, this time no existing methods in `Sema` have to be declared as `virtual`.
+This is because `CaptureSema` is only used by `CaptureParser`, and whenever `CaptureParser` calls a method present in both `CaptureSema` and `Sema`, it can be decided statically which class's method implementation is to be called.
+Thus no dynamic polymorphism, as facilitated by `virtual` methods, is required in this context.
 
 
 ## Bug reports & suggestion
